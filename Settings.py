@@ -1,7 +1,5 @@
 import json
 
-from SoundEffect import load_sound_effects # Function to load settings
-
 sound_effects = None
 OBS_Browser_Source = False
 sound_effects_cooldown = 0
@@ -17,6 +15,7 @@ def process_settings(settings_path):
     settings = load_settings(settings_path)
 
     if settings.get("enable_sound_effects", False):
+        from SoundEffect import load_sound_effects  # Function to load settings
         sound_effects = load_sound_effects(settings.get("sound_effects_file_path"))
 
     # Store the other settings
