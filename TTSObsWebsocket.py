@@ -3,8 +3,7 @@ import logging
 import json
 import asyncio
 
-# WebSocket clients set
-connected_clients = set()
+connected_clients = set() # WebSocket clients set
 
 # Start WebSocket server to handle real-time messaging
 async def websocket_handler(websocket, path):
