@@ -1,0 +1,4 @@
+pyttsx3==2.98                  #for text-to-speech
+pydub==0.25.1                  #for sound effects
+websockets==13.1               #for the websocket server
+irc==20.5.0                    #for irc.client (IRC client functionality)
