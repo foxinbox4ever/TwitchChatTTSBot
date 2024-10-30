@@ -2,5 +2,6 @@
     "enable_sound_effects": true,
     "sound_effects_file_path": "sound effects",
     "sound_effects_cooldown": 5,
-    "OBS_Browser_Source": true
+    "OBS_Browser_Source": true,
+    "OBS_Bobble_image": "dwightHead.png"
 }

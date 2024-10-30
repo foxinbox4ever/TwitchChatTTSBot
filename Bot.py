@@ -9,7 +9,7 @@ from TTS import text_to_speech
 from TTSObsWebsocket import start_websocket_server
 from Commands import COMMANDS
 from SoundEffect import play_sound_from_file,set_sound_cooldown_from_file
-from Settings import process_settings, sound_effects
+from config import process_settings, sound_effects
 
 logging.basicConfig(level=logging.INFO) # Set up logging configuration
 
@@ -117,6 +117,7 @@ if __name__ == "__main__":
     channel = '#foxinbox4ever'
 
     settings = process_settings("settings.json")
+    logging.info(f"Settings: {settings}")
 
     try:
         asyncio.run(main())

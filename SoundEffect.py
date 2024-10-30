@@ -3,7 +3,10 @@ from pydub.playback import play
 import time
 import logging
 import os
-from Settings import sound_effects_cooldown
+
+from config import load_settings
+
+sound_effects_cooldown = load_settings("settings.json")['sound_effects_cooldown']
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s') # Set up logging
 

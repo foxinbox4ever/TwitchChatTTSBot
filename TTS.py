@@ -1,9 +1,11 @@
 import logging
 import pyttsx3
+
 from TTSObsWebsocket import update_latest_message
-from Settings import OBS_Browser_Source  # Import the OBS_Browser_Source variable
+from config import load_settings
 
 tts_engine = pyttsx3.init()
+OBS_Browser_Source = load_settings("settings.json")["OBS_Browser_Source"]
 
 async def text_to_speech(message):
     try:
@@ -14,6 +16,7 @@ async def text_to_speech(message):
         estimated_duration = len(message.split()) * 500
 
         # Check if OBS_Browser_Source is True before updating the last message
+        logging.info(f"Is OBS Websocket is up: {OBS_Browser_Source}")
         if OBS_Browser_Source:
             await update_latest_message(username_message[0], username_message[1], estimated_duration)
 
@@ -40,6 +43,7 @@ async def text_to_shout(message):
         estimated_duration = len(message.split()) * 500
 
         # Check if OBS_Browser_Source is True before updating the last message
+        logging.info(f"Is OBS Websocket is up: {OBS_Browser_Source}")
         if OBS_Browser_Source:
             await update_latest_message(username_message[0], username_message[1], estimated_duration)
 
