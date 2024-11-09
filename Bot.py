@@ -10,7 +10,7 @@ from TTSObsWebsocket import start_websocket_server
 from Commands import COMMANDS
 from SoundEffect import play_sound_from_file, set_sound_cooldown_from_file
 from config import process_settings, sound_effects
-from Viewers import Viewer, viewers, new_viewer_wrapper, remove_viewer, get_broadcaster_id
+from Viewers import viewers, new_viewer_wrapper, remove_viewer, get_broadcaster_id
 
 logging.basicConfig(level=logging.INFO)  # Set up logging configuration
 shutdown_event = threading.Event()
@@ -73,7 +73,7 @@ async def handle_chat_message(connection, username, message):
         command = COMMANDS.get(command_name)
 
         if command:
-            await command.execute(connection, username, message, channel)
+            await command.execute(connection, username, message, channel, token, client_id, broadcaster_id)
         elif "get out" == message:
             play_sound_from_file(sound_effects, "Tuco-GET-OUT-Sound-Effect.mp3", True)
         else:
@@ -129,7 +129,7 @@ class IRCBot:
             self.connection.add_global_handler('namreply', on_names)
             self.connection.add_global_handler('endofnames', on_names)
             self.connection.add_global_handler('ping', on_ping)
-            #self.connection.add_global_handler("all_events", on_any_event)
+            self.connection.add_global_handler("all_events", on_any_event)
 
     def run(self):
         self.connect()
