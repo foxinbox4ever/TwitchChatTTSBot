@@ -61,7 +61,7 @@ class Viewer:
 
             # Check if the user is a subscriber
             subscriptions_response = requests.get(
-                f'https://api.twitch.tv/helix/subscriptions/user?broadcaster_id={broadcaster_id}&user_id={viewer_id}',
+                 f"https://api.twitch.tv/helix/subscriptions?broadcaster_id={broadcaster_id}",
                 headers=headers
             )
 
