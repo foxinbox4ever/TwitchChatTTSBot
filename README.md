@@ -8,7 +8,7 @@ Made by foxinbox
 - Check requirements.txt to see what libraries you will need to install with pip
 - Download all the files in the repository
 - Open settings.json and adjust the settings you want for the bot
-- Open Bot.py and scroll down to __main__ and replace TWITCH_TOKEN with a generated twitch token for your account and change the nickname and channel name to your channel name
+- Open Bot.py and scroll down to __main__ (links to socials can be changed in Commands.py in the class SocialsCommand) and replace any veriable in caps e.g CLIENT_ID, CLIENT_SECRET, TWITCH_TOKEN, DISCORD_LINK, TWITTER_LINK, INSTAGRAM_LINK etc... to your information (client_id = 'your client id')
 - run Bot.py
 
 ### Set up OBS/Streamlabs browser source;
