@@ -8,8 +8,9 @@ Made by foxinbox
 - Check requirements.txt to see what libraries you will need to install with pip
 - Download all the files in the repository
 - Open settings.json and adjust the settings you want for the bot
-- Open Bot.py and scroll down to __main__ (links to socials can be changed in Commands.py in the class SocialsCommand) and replace any veriable in caps e.g CLIENT_ID, CLIENT_SECRET, TWITCH_TOKEN, DISCORD_LINK, TWITTER_LINK, INSTAGRAM_LINK etc... to your information (client_id = 'your client id')
+- Go to dev.Twitch.tv in the top right hand corner of the screen, click your console, click register your application, give it a name, OAuth Redirect URL http://localhost:8081, select chat bot, click create, click manage on the bot you created, copy the client ID to your settings.json, click create secret, copy the client secret to your settings.json, put your twitch name in settings.json
 - run Bot.py
+- The first time you run it, your browser should open and ask you to authenticate the bot. Please ensure you're logged in on the same account as the one that you created the bot in the Twitch dev portal
 
 ### Set up OBS/Streamlabs browser source;
 
