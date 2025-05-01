@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 from TTS import text_to_shout, text_to_speech
 from Viewers import viewers
-
+from config import settings_data, get_social_links
 
 class BaseCommand:
     user_cooldowns = {}  # Store cooldowns for each user per command
@@ -173,11 +173,13 @@ class DiscordCommand(BaseCommand):
 
     async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
         if self.can_execute(username):
-            discord_link = os.getenv("DISCORD_LINK")
+            social_links = get_social_links()
+            discord_link = next((value for key, value in social_links.items() if key.lower() == "discord"), None)
+
             if not discord_link:
-                response = f"@{username} no discord has been provided"
+                response = f"@{username}, no Discord link has been provided."
             else:
-                response = f"@{username} join the discord here {discord_link}"
+                response = f"@{username}, join the Discord here: {discord_link}"
 
             connection.privmsg(channel, response)
             logging.info(f"Executed {self.name} command for {username}")
@@ -350,17 +352,17 @@ class SocialsCommand(BaseCommand):
 
     async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
         if self.can_execute(username):
-            # Get social links from environment variables or default to None
-            discord_link = os.getenv("DISCORD_LINK", "No Discord link provided")
-            twitter_link = os.getenv("TWITTER_LINK", "No Twitter link provided")
-            instagram_link = os.getenv("INSTAGRAM_LINK", "No Instagram link provided")
-            youtube_link = os.getenv("YOUTUBE_LINK", "No YouTube link provided")
-            tiktok_link = os.getenv("TIKTOK_LINK", "No TikTok link provided")
+            social_links = get_social_links()
 
-            # Build the response message as a single string (no line breaks)
-            response = f"@{username}, here are all my socials: 🎮 {discord_link} | 🐦 {twitter_link} | 📸 {instagram_link} | 📺 {youtube_link} | 🎵 {tiktok_link}"
+            if not social_links:
+                response = f"@{username}, no social links have been provided."
+            else:
+                # Create a string of "Name: URL" entries
+                link_display = " | ".join(
+                    f"{name.capitalize()}: {url}" for name, url in social_links.items()
+                )
+                response = f"@{username}, here are all my socials: {link_display}"
 
-            # Send the response to Twitch chat
             connection.privmsg(channel, response)
             logging.info(f"Executed {self.name} command for {username}")
         else:
