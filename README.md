@@ -22,6 +22,10 @@ Made by foxinbox
 - Click the check mark for refresh browser when scene becomes active
 - Run Bot.py to start the websocket server
 
+### Add more social media links;
+
+- Add the link in this format to settings.json "Social_Link": "URL"
+
 ### Add more sound effects;
 
 - Save the mp3 file to the sound effects folder (location of this can be adjusted in settings)
