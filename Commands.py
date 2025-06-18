@@ -4,10 +4,14 @@ import logging
 import random
 import requests
 from datetime import datetime, timedelta
+import asyncio
+import json
+import re
+import aiohttp
 
-from TTS import text_to_shout, text_to_speech
+from BotTTS import text_to_shout, text_to_speech
 from Viewers import viewers
-from config import settings_data, get_social_links
+from config import settings_data, get_social_links, OBS_Browser_Source
 
 class BaseCommand:
     user_cooldowns = {}  # Store cooldowns for each user per command
@@ -369,6 +373,184 @@ class SocialsCommand(BaseCommand):
             self.on_cooldown(connection, username, channel)
 
 
+from TTSObsWebsocket import broadcast_message, connected_clients
+
+class VoteCommand(BaseCommand):
+    active_vote = None
+    vote_is_active = False
+    vote_end_time = None
+    vote_responses = {}
+
+    def __init__(self):
+        super().__init__(name="!vote", cooldown=5,
+                         description="Starts a vote if you're a mod, or votes if a vote is active")
+
+    async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
+        if not self.can_execute(username):
+            self.on_cooldown(connection, username, channel)
+            return
+
+        if self.__class__.vote_is_active:
+            connection.privmsg(channel, "⚠️ A vote is already active!")
+            return
+
+        logging.info(f"Executed {self.name} command for {username}")
+        parts = message.split(" ", 1)
+
+        # Only moderators can start a vote
+        if username not in [viewer.username for viewer in viewers if viewer.mod]:
+            connection.privmsg(channel, f"@{username}, only moderators can start a vote!")
+            return
+
+        if len(parts) > 1 and "?" in parts[1]:
+            question_and_options = parts[1]
+            try:
+                question, options_str = question_and_options.split("?", 1)
+                options = re.findall(r'\d+\.(.*?)(?=\s*\d+\.|$)', options_str.strip())
+                options = [opt.strip() for opt in options if opt.strip()]
+
+                if len(options) < 2:
+                    connection.privmsg(channel, "You must provide at least 2 options.")
+                    return
+
+                logging.info(
+                    f"Starting vote initiated by {username}: '{question.strip()}?' "
+                    f"with options: {', '.join(f'{i + 1}. {opt}' for i, opt in enumerate(options))}"
+                )
+
+                if OBS_Browser_Source:
+                    self.__class__.active_vote = {
+                        "question": question.strip() + "?",
+                        "options": options,
+                        "started_by": username
+                    }
+                    self.__class__.vote_end_time = time.time() + 60
+                    self.__class__.vote_responses = {}
+                    self.__class__.vote_is_active = True
+
+                    vote_payload = {
+                        "vote": {
+                            "question": self.active_vote["question"],
+                            "options": self.active_vote["options"],
+                            "timeRemaining": int(self.vote_end_time - time.time())
+                        }
+                    }
+                    await broadcast_message(username, "", 0)
+                    await asyncio.sleep(0.1)
+                    await asyncio.gather(*[
+                        client.send(json.dumps(vote_payload)) for client in connected_clients
+                    ])
+                    logging.info(f"Vote sent to browser source: {vote_payload}")
+                else:
+                    logging.info("OBS web browser source is offline, creating Twitch poll instead.")
+                    success, result = await create_twitch_poll(token, client_id, broadcaster_id, question, options)
+                    if success:
+                        connection.privmsg(channel, f"📊 A Twitch poll has been started! Vote using the poll above!")
+                    else:
+                        connection.privmsg(channel, f"⚠️ Failed to create Twitch poll: {result}")
+                        options_text = " | ".join([f"{i + 1}. {opt}" for i, opt in enumerate(options)])
+                        connection.privmsg(channel,
+                                           f"@{username} started a vote: {question.strip()}? Options: {options_text}")
+                        connection.privmsg(channel, "Type the number of your choice to vote!")
+
+            except Exception as e:
+                logging.error(f"Error while processing vote command: {e}")
+                connection.privmsg(channel, "⚠️ Error starting vote.")
+
+    @classmethod
+    async def handle_vote_response(cls, connection, username, message, channel):
+        logging.info(f"Handling vote response from {username}")
+
+        if not cls.active_vote or time.time() >= cls.vote_end_time:
+            logging.info("No active vote or vote has ended.")
+            return
+
+        if not message.strip().isdigit():
+            return
+
+        choice = int(message.strip())
+        if 1 <= choice <= len(cls.active_vote["options"]):
+            cls.vote_responses[username] = choice
+            logging.info(f"Vote response for {username} was {choice}")
+
+            results = {}
+            for vote in cls.vote_responses.values():
+                results[vote] = results.get(vote, 0) + 1
+
+            vote_counts = [results.get(i + 1, 0) for i in range(len(cls.active_vote["options"]))]
+
+            if OBS_Browser_Source:
+                vote_payload = {
+                    "vote": {
+                        "question": cls.active_vote["question"],
+                        "options": cls.active_vote["options"],
+                        "timeRemaining": int(cls.vote_end_time - time.time())
+                    },
+                    "voteCounts": vote_counts
+                }
+                await asyncio.gather(*[
+                    client.send(json.dumps(vote_payload)) for client in connected_clients
+                ])
+                logging.info(f"Vote response sent to browser source: {vote_payload}")
+
+    @classmethod
+    async def handle_end_of_vote(cls, connection, channel):
+        if cls.vote_end_time and time.time() >= cls.vote_end_time:
+            logging.info("Handling end of vote.")
+            cls.vote_is_active = False
+
+            if not OBS_Browser_Source:
+                results = {}
+                for vote in cls.vote_responses.values():
+                    results[vote] = results.get(vote, 0) + 1
+
+                result_lines = []
+                for i, option in enumerate(cls.active_vote["options"]):
+                    count = results.get(i + 1, 0)
+                    result_lines.append(f"{i + 1}. {option}: {count} votes")
+
+                result_message = f"🗳️ Final vote results for '{cls.active_vote['question']}': " + " | ".join(
+                    result_lines)
+                connection.privmsg(channel, result_message)
+                logging.info("Vote ended and results sent to chat.")
+
+            cls.active_vote = None
+            cls.vote_responses = {}
+            cls.vote_end_time = None
+
+async def create_twitch_poll(token, client_id, broadcaster_id, question, options, duration=60):
+    """
+    Creates a Twitch poll using the Helix API.
+    """
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Client-ID": client_id,
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "broadcaster_id": broadcaster_id,
+        "title": question.strip()[:60],
+        "choices": [{"title": opt[:25]} for opt in options[:5]],  # Max 5 options
+        "duration": duration
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post("https://api.twitch.tv/helix/polls", headers=headers, json=payload) as resp:
+                if resp.status == 200:
+                    result = await resp.json()
+                    logging.info(f"Twitch poll successfully created: {result}")
+                    return True, result
+                else:
+                    error_text = await resp.text()
+                    logging.warning(f"Failed to create Twitch poll: {resp.status} - {error_text}")
+                    return False, error_text
+    except Exception as e:
+        logging.error(f"Exception during Twitch poll creation: {e}")
+        return False, str(e)
+
+
 # This dictionary helps map command names to their respective classes
 COMMANDS = {
     "!help": HelpCommand(),
@@ -381,6 +563,7 @@ COMMANDS = {
     "!braincells": BrainCellsCommand(),
     "!uptime": UptimeCommand(),
     "!dadjoke": DadJokeCommand(),
-    "!socials": SocialsCommand()
+    "!socials": SocialsCommand(),
+    "!vote": VoteCommand()
 }
 commands_list = ', '.join(COMMANDS.keys())

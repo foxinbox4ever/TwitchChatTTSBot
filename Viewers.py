@@ -13,6 +13,7 @@ class Viewer:
         self.user_id = self.get_user_id_from_username()
         self.following = self.check_if_follower()
         self.subscribed = self.check_if_subbed()
+        self.mod = self.check_if_mod()
 
 
         logging.info(f"Initialized viewer: {self.username}")
@@ -47,7 +48,7 @@ class Viewer:
             return None
 
     def check_if_follower(self):
-        logging.info(f"Checking if {self.username} is following")
+        logging.info(f"Checking if {self.username} is following {self.broadcaster_id}")
 
         if not self.user_id:
             logging.error(f"User {self.username} has no ID")
@@ -69,7 +70,7 @@ class Viewer:
 
         elif response.status_code == 200:
             data = response.json().get("data", [])
-            if any(entry["broadcaster_id"] == self.broadcaster_id for entry in data):
+            if data:
                 logging.info(f"{self.username} **is** following {self.broadcaster_id}")
                 return True
             else:
@@ -84,28 +85,71 @@ class Viewer:
             return False
 
         headers = self.get_headers()
-        subs_url = f"https://api.twitch.tv/helix/subscriptions/user?broadcaster_id={self.broadcaster_id}&user_id={self.user_id}"
+        subs_url = f"https://api.twitch.tv/helix/subscriptions?broadcaster_id={self.broadcaster_id}&user_id={self.user_id}"
         response = requests.get(subs_url, headers=headers)
 
         logging.info(f"Subscription API response: {response.status_code} - {response.text}")
 
-        if response.status_code == 400:
-            logging.error(f"Bad Request: {response.text}")
-            return False
+        if response.status_code == 200:
+            data = response.json().get("data", [])
+            if data:
+                logging.info(f"User {self.username} **is** subscribed to {self.broadcaster_id}")
+                return True
+            else:
+                logging.info(f"User {self.username} **is NOT** subscribed to {self.broadcaster_id}")
+                return False
 
         elif response.status_code == 401:
-            logging.error("Unauthorized access. Missing scope: user:read:subscriptions")
+            logging.error("Unauthorized access. Missing scope: channel:read:subscriptions")
             return False
 
-        elif response.status_code == 404:
-            logging.info(f"User {self.username} **is NOT** subscribed to {self.broadcaster_id}")
+        else:
+            logging.warning(f"Unexpected response: {response.status_code} - {response.text}")
+            return False
+
+    def check_if_mod(self):
+        logging.info(f"Checking if {self.username} is a mod")
+
+        if not self.user_id:
+            logging.error(f"User {self.username} has no ID")
+            return False
+
+        # Viewer is the broadcaster — always has mod-level access
+        if self.user_id == self.broadcaster_id:
+            logging.info(f"{self.username} **is** the broadcaster — treated as mod")
+            return True
+
+        headers = self.get_headers()
+        url = (
+            f"https://api.twitch.tv/helix/moderation/moderators"
+            f"?broadcaster_id={self.broadcaster_id}&user_id={self.user_id}"
+        )
+        response = requests.get(url, headers=headers)
+
+        logging.info(f"Moderator API response: {response.status_code} - {response.text}")
+
+        if response.status_code == 401:
+            logging.error("Unauthorized access. Missing scope: moderator:read:chatters")
             return False
 
         elif response.status_code == 200:
-            logging.info(f"User {self.username} **is** subscribed to {self.broadcaster_id}")
-            return True
+            data = response.json().get("data", [])
+            if any(entry["user_id"] == self.user_id for entry in data):
+                logging.info(f"{self.username} **is** a moderator")
+                return True
+            else:
+                logging.info(f"{self.username} **is NOT** a moderator")
+                return False
 
-        return False
+        else:
+            logging.warning(f"Unexpected response when checking mod status: {response.status_code}")
+            return False
+
+        def update_status(self):
+            self.following = self.check_if_follower()
+            self.subscribed = self.check_if_subbed()
+            self.mod = self.check_if_mod()
+            logging.info(f"Updated status for {self.username} — Follower: {self.following}, Sub: {self.subscribed}, Mod: {self.mod}")
 
 
 async def new_viewer(username, token, client_id, broadcaster_id):

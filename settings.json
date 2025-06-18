@@ -1,9 +1,9 @@
 {
-    "Client_ID": "",
-    "Client_Secret": "",
-    "Twitch_Token": "",
-    "Twitch_Name": "",
-    "TTS_Access": "all",
+    "Client_ID": "3ed5ptab4h31jus97mpdqsqfu0r299",
+    "Client_Secret": "mzd82hmtri1yxufqcvorpwiyyrdksz",
+    "Twitch_Token": "oauth:toxuhsd7cl8fifj8z3wphkc51xcxvm",
+    "Twitch_Name": "foxinbox4ever",
+    "TTS_Access": "followers",
     "TTS_Volume": "0.8",
     "TTS_Shout_Volume": "1",
     "TTS_Random_Voice": true,
@@ -13,11 +13,11 @@
     "sound_effects_cooldown": 5,
     "OBS_Browser_Source": true,
     "OBS_Bobble_image": "dwightHead.png",
-    "Twitch_Refresh_Token": "",
+    "Twitch_Refresh_Token": "jyv0qknwokqtd3gqxbdp4s93qeg9qw7uwdpyz23ahjkhi07lrs",
     "Discord_Link": "https://discord.gg/UM3rmnf9zV",
-    "Twitter_Link": "",
-    "YouTube_Link": "",
-    "TikTok_Link": "",
+    "Twitter_Link": "https://x.com/foxinboxTTV",
+    "YouTube_Link": "https://www.youtube.com/@foxinbox4ever",
+    "TikTok_Link": "https://www.tiktok.com/@foxinbox4ever",
     "Instagram_Link": "",
-    "Donate_Link": ""
+    "Donate_Link": "https://streamlabs.com/foxinbox4ever/tip"
 }
