@@ -5,10 +5,11 @@ import threading
 import irc.client
 import asyncio
 import json
+import time
 
-from TTS import text_to_speech
+from BotTTS import text_to_speech
 from TTSObsWebsocket import start_websocket_server
-from Commands import COMMANDS
+from Commands import COMMANDS, VoteCommand
 from SoundEffect import play_sound_from_file
 from config import process_settings, sound_effects
 from Viewers import viewers, new_viewer_wrapper, remove_viewer, get_broadcaster_id
@@ -72,13 +73,27 @@ async def handle_chat_message(connection, username, message):
 
         if command:
             await command.execute(connection, username, message, channel, actual_token, client_id, broadcaster_id)
-        elif "get out" == message:
+            return
+
+        if message.lower() == "get out":
             play_sound_from_file(sound_effects, "Tuco-GET-OUT-Sound-Effect.mp3", True)
-        else:
-            tts_message = f"{username} says {message}"
-            await text_to_speech(tts_message)
+            return
+
+        # Handle vote logic
+        if VoteCommand.vote_is_active:
+            if message.strip().isdigit():
+                if time.time() < VoteCommand.vote_end_time:
+                    await VoteCommand.handle_vote_response(connection, username, message, channel)
+                else:
+                    await VoteCommand.handle_end_of_vote(connection, channel)
+                return
+
+        # Fallback: TTS if not a vote or handled message
+        tts_message = f"{username} says {message}"
+        await text_to_speech(tts_message)
+
     except Exception as e:
-        logging.error(f"Error processing message from {username}: {e}")
+        logging.error(f"Error handling chat message: {e}")
 
 def on_pubmsg(connection, event):
     username = event.source.nick
@@ -209,6 +224,9 @@ async def main():
     try:
         if websocket_server_task:
             await websocket_server_task
+        else:
+            while not shutdown_event.is_set():
+                await asyncio.sleep(1)
     except asyncio.CancelledError:
         logging.info("WebSocket server task cancelled.")
     finally:
