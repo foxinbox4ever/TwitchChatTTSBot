@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sanity Bar</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #222;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+
+        #sanity-title {
+            font-size: 2em;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        #sanity-container {
+            width: 80%;
+            height: 40px;
+            background-color: #444;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 0 10px #000;
+        }
+
+        #sanity-bar {
+            height: 100%;
+            width: 50%;
+            background: linear-gradient(90deg, #00ff00, #ffcc00);
+            transition: width 0.5s ease-in-out, background 0.5s ease-in-out;
+        }
+
+        .error-message {
+            margin-top: 20px;
+            background-color: #880000;
+            padding: 10px;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="sanity-title">Current Sanity</div>
+<div id="sanity-container">
+    <div id="sanity-bar"></div>
+</div>
+<div id="error-display" class="error-message" style="display: none;"></div>
+
+<script>
+    const sanityBar = document.getElementById("sanity-bar");
+    const errorDisplay = document.getElementById("error-display");
+    let ws;
+
+    function updateSanityBar(value) {
+        const clampedValue = Math.max(0, Math.min(100, value));
+        sanityBar.style.width = clampedValue + "%";
+
+        if (clampedValue > 66) {
+            sanityBar.style.background = "linear-gradient(90deg, #00ff00, #99ff00)";
+        } else if (clampedValue > 33) {
+            sanityBar.style.background = "linear-gradient(90deg, #ffcc00, #ffaa00)";
+        } else {
+            sanityBar.style.background = "linear-gradient(90deg, #ff3300, #cc0000)";
+        }
+    }
+
+    function showError(message) {
+        errorDisplay.textContent = message;
+        errorDisplay.style.display = "block";
+    }
+
+    function clearError() {
+        errorDisplay.textContent = "";
+        errorDisplay.style.display = "none";
+    }
+
+    function connectWebSocket() {
+        ws = new WebSocket("ws://localhost:8080/");
+
+        ws.onopen = () => {
+            console.log("WebSocket connected.");
+            clearError();
+            updateSanityBar(100);
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === "sanity" && typeof data.value === "number") {
+                    updateSanityBar(data.value);
+                }
+            } catch (e) {
+                console.error("Invalid JSON or sanity payload:", e);
+            }
+        };
+
+        ws.onerror = (err) => {
+            console.error("WebSocket error:", err);
+            showError("WebSocket error: " + err.message);
+        };
+
+        ws.onclose = () => {
+            console.warn("WebSocket closed.");
+            showError("WebSocket connection lost. Reconnecting...");
+        };
+    }
+
+    // Constant check to maintain connection
+    setInterval(() => {
+        if (!ws || ws.readyState === WebSocket.CLOSED) {
+            console.log("Attempting to reconnect...");
+            connectWebSocket();
+        }
+    }, 5000);
+
+    connectWebSocket();
+</script>
+
+</body>
+</html>
+
+

@@ -104,7 +104,6 @@ def run_YouTube_Bot():
         return
 
     # Authenticate and get a valid access token
-    from Autherisation_URL import authenticate_youtube  # import here to avoid circular import if needed
     access_token = authenticate_youtube(client_id, client_secret)
 
     if not access_token:

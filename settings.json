@@ -1,10 +1,11 @@
 {
     "Twitch_Bot": true,
-    "Youtube_Bot": false,
     "Twitch_Client_ID": "",
     "Twitch_Client_Secret": "",
     "Twitch_Token": "",
+    "Twitch_Refresh_Token": "",
     "Twitch_Name": "foxinbox4ever",
+    "Youtube_Bot": false,
     "YouTube_Client_ID": "",
     "YouTube_Client_Secret": "",
     "YouTube_Token": "API KEY",
@@ -19,11 +20,11 @@
     "sound_effects_cooldown": 5,
     "OBS_Browser_Source": true,
     "OBS_Bobble_image": "dwightHead.png",
-    "Twitch_Refresh_Token": "",
+    "Sanity_Bar": true,
     "Discord_Link": "https://discord.gg/UM3rmnf9zV",
     "Twitter_Link": "https://x.com/foxinboxTTV",
     "YouTube_Link": "https://www.youtube.com/@foxinbox4ever",
     "TikTok_Link": "https://www.tiktok.com/@foxinbox4ever",
-    "Instagram_Link": "",
-    "Donate_Link": "https://streamlabs.com/foxinbox4ever/tip"
+    "Donate_Link": "https://streamlabs.com/foxinbox4ever/tip",
+    "Bot_Link": "https://github.com/foxinbox4ever/TwitchChatTTSBot"
 }
