@@ -2,6 +2,7 @@
 This is a simple twitch bot that handles TTS for chat and a browser source for OBS. \
 Made with python 3.10\
 Made by foxinbox 
+[twitch](https://www.twitch.tv/foxinbox4ever)
 
 ### Set up;
 
@@ -22,9 +23,52 @@ Made by foxinbox
 - Click the check mark for refresh browser when scene becomes active
 - Run Bot.py to start the websocket server
 
+### Built-in Commands;
+
+- "!help" - Lists all commands, or gives help on a specific one.
+- "!shout" - Sends louder TTS (volume configurable).
+- "!raffel" - Picks a random viewer (optionally only subs or followers).
+- "!lurk" - 	Says you're lurking.
+- "!subs" - Lists current subscribers.
+- "!discord" - Posts your Discord link.
+- "!hug" - Sends a hug message (target another user if desired).
+- "!braincells" - Shows your brain cell count.
+- "!uptime" - Shows how long the streamer has been live.
+- "!dadjoke" - Sends a dad joke from JokeAPI (AI version coming soon).
+- "!socials" - Lists all social media links from settings.json.
+- "!vote" - Lets mods create a chat poll (OBS-based or Twitch native).
+- "!sanity" - Viewers vote on the streamer's sanity level (can show in OBS).
+
+  If you have any new command ideas, join my twitch discord and message me there. [Discord](https://discord.gg/UM3rmnf9zV)
+
+### Settings
+
+- Twitch_Bot - true or false, enables the twitch bot.
+- Twitch_Client_ID - this is your client ID and is required to run the twitch bot. (see setup to find out how to get one)
+- Twitch_Client_Secret - this is your client secret and is required to run the twitch bot. (see setup to find out how to get one)
+- Twitch_Token - this is your bots oauth token for twitch allowing it to interact with the API. (to store the token)
+- Twitch_Refresh_Token - this is used to refresh the oauth token when its no longer valid.
+- Twitch_Name - this is your twitch channel name.
+- YouTube_Bot - true or false, enables the youtube bot. The youtube bot functionality isnt complete yet, so keep it false.
+- YouTube_Client_ID - this is your client ID and is required to run the youtube bot.
+- YouTube_Client_Secret - this is your client secret and is required to run the youtube bot.
+- YouTube_Token - this is your bots oauth token for youtube allowing it to interact with the API. (to store the token)
+- YouTube_Channel_ID - this is your youtube channel ID and is required to run the youtube bot.
+- TTS_Access - all, followers, subs, or off. Allows you to specify which users are allowed to use the TTS.
+- TTS_Volume - 0 - 1. Allows you to set the volume of the TTS.
+- TTS_Shout_Volume - 0 - 1. Allows you to set the TTS volume for the "!shout" command.
+- TTS_Random_Voice - true or false. Allows you to have a random voice for each message from the downloaded windows voices.
+- TTS_Voice - 0 - the number of installed voices (for English up to 2). Sets the TTS voice.
+- enable_sound_effects - true or false. Enables or disables the sound effects functionality.
+- sound_effects_file_path - file path. Is the file path for the sound effects.
+- sound_effects_cooldown - number. Allows you to set the cool down for the sound effects in secounds.
+- OBS_Browser_Source - true or false. Allows you to turn the OBS browser source functionality on or off.
+- OBS_Bobble_image - file path. This is the file path of the bobble image for the browser source.
+- Sanity_Bar - true or false. Allows you to turn the OBS browser source functionality on or off for the sanity bar.
+
 ### Add more social media links;
 
-- Add the link in this format to settings.json "Social_Link": "URL"
+- Add the link in this format to settings.json "Social_Link": "URL" (ensure you put _Link after the name of the link)
 
 ### Add more sound effects;
 
@@ -43,3 +87,8 @@ See the other commands that I have already written as an example
 
 ### Known issues
 Claro read TTS not fully setup yet (deleted from the repository)
+The youtube bot has not been tested and will not work with commands or most things.
+
+Enjoy using the bot and customising it to your community's vibe!
+
+If you have any issues join my [discord](https://discord.gg/UM3rmnf9zV)
