@@ -1,4 +1,7 @@
-pyttsx3==2.98                  #for text-to-speech
-pydub==0.25.1                  #for sound effects
-websockets==13.1               #for the websocket server
-irc==20.5.0                    #for irc.client (IRC client functionality)
+pyttsx3==2.98                  # Text-to-speech engine
+pydub==0.25.1                  # Sound playback and effects
+websockets==13.1               # WebSocket server for OBS/browser
+irc==20.5.0                    # IRC client for Twitch chat
+aiohttp==3.11.18                 # Async HTTP requests (used in commands or APIs)
+google-api-python-client==2.173.0  # YouTube API support (Google API Client)
+requests==2.32.3             # HTTP requests (used for JokeAPI or Twitch)

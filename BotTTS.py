@@ -5,7 +5,7 @@ import re
 
 from TTSObsWebsocket import update_latest_message
 from config import load_settings
-from Viewers import viewers  # Ensure this import exists
+from Viewers import viewers
 
 # Initialize TTS engine
 tts_engine = pyttsx3.init()
