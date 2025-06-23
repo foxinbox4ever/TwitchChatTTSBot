@@ -49,7 +49,7 @@ def user_allowed_tts(username):
 
     if TTS_Access == "off":
         return False
-    if TTS_Access == "subscribers" and not (viewer_info and viewer_info.is_subscribed):
+    if TTS_Access == "subs" and not (viewer_info and viewer_info.is_subscribed):
         return False
     if TTS_Access == "followers" and not (viewer_info and viewer_info.is_following):
         return False

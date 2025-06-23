@@ -73,7 +73,7 @@ async def handle_chat_message(connection, username, message):
             await command.execute(connection, username, message, channel, actual_token, client_id, broadcaster_id)
             return
 
-        if message.lower() == "get out":
+        if message.lower() == "get out" and enable_sound_effects:
             play_sound_from_file(sound_effects, "Tuco-GET-OUT-Sound-Effect.mp3", True)
             return
 
@@ -206,9 +206,6 @@ async def on_usernotice(connection, event):
 
     if tts_message:
         await text_to_speech(tts_message)
-
-
-
 
 def save_token_to_settings(new_token):
     if not new_token.startswith("oauth:"):
