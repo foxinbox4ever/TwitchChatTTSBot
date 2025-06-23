@@ -384,7 +384,7 @@ class VoteCommand(BaseCommand):
 
     def __init__(self):
         super().__init__(name="!vote", cooldown=5,
-                         description="Starts a vote if you're a mod, or votes if a vote is active")
+                         description="Allows you to start a vote if you're a mod")
 
     async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
         if not self.can_execute(username):
@@ -622,6 +622,3 @@ COMMANDS = {
 }
 
 commands_list = ', '.join(COMMANDS.keys())
-
-if Sanity_Bar and not OBS_Browser_Source:
-    logging.warning("OBS browser source has to be active for the sanity bar")

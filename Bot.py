@@ -41,7 +41,7 @@ async def main():
         threads.append(y)
 
     websocket_task = None
-    if settings.get("OBS_Browser_Source", False):
+    if settings.get("OBS_Browser_Source", False) or settings.get("Sanity_Bar", False):
         websocket_task = asyncio.create_task(start_websocket_server())
 
     try:

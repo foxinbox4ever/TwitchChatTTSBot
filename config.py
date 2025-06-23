@@ -6,6 +6,7 @@ logging.basicConfig(level=logging.INFO)
 # Global variables
 Twitch_Bot = True
 YouTube_Bot = False
+enable_sound_effects = False
 sound_effects = None
 sound_effects_cooldown = 0
 OBS_Browser_Source = False
@@ -26,7 +27,8 @@ def load_settings(settings_path):
 
     global settings_data
     global Twitch_Bot, YouTube_Bot
-    global sound_effects_cooldown, OBS_Browser_Source, OBS_Bobble_image
+    global sound_effects_cooldown, enable_sound_effects, sound_effects
+    global OBS_Browser_Source, OBS_Bobble_image
     global TTS_Access, TTS_Volume, TTS_Shout_Volume, TTS_Random_Voice, TTS_Voice
     global Sanity_Bar
 
@@ -73,6 +75,7 @@ def process_settings(settings_path):
         sound_effects = load_sound_effects(settings.get("sound_effects_file_path"))
 
     return {
+        "enable_sound_effects": settings.get("enable_sound_effects", False),
         "sound_effects": sound_effects,
         "sound_effects_cooldown": sound_effects_cooldown,
         "OBS_Browser_Source": OBS_Browser_Source,
