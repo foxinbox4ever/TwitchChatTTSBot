@@ -31,16 +31,29 @@ async def websocket_handler(websocket):
 
 # Broadcast function to send messages (and optionally vote) to all clients
 async def broadcast_message(username, message, duration):
+    is_sub = False
+
+    sub_keywords = [
+        "thank you very much for the sub!",
+        "thank you very much for the gifted sub",
+    ]
+
+    if any(keyword in message.lower() for keyword in sub_keywords):
+        is_sub = True
+
     if connected_clients:
         payload = {
             "username": username.strip(),
             "message": message.strip(),
+            "isSub": is_sub,
             "duration": duration
         }
 
         message_data = json.dumps(payload)
         logging.info(f"Message payload: {message_data}")
-        await asyncio.wait([client.send(message_data) for client in connected_clients])
+
+        await asyncio.gather(*(client.send(message_data) for client in connected_clients))
+
 
 
 async def update_latest_message(username, message, duration):

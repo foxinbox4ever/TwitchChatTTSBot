@@ -1,6 +1,7 @@
 import logging
 import random
 import pyttsx3
+import re
 
 from TTSObsWebsocket import update_latest_message
 from config import load_settings
@@ -58,12 +59,38 @@ def user_allowed_tts(username):
 async def text_to_speech(message):
     try:
         logging.info("TTS activated for message")
-        username_message = message.split("says")
-        username = username_message[0].strip()
 
-        if not user_allowed_tts(username):
-            logging.info(f"TTS skipped for {username}: Not allowed by TTS_Access setting.")
-            return 0
+        username = "TTSystem"
+        apply_spam_filter = True
+
+        if "says" in message:
+            username_message = message.split("says")
+            username = username_message[0].strip()
+
+            if not user_allowed_tts(username):
+                logging.info(f"TTS skipped for {username}: Not allowed by TTS_Access setting.")
+                return 0
+        else:
+            apply_spam_filter = False
+            username_message = [username, message]
+
+        if apply_spam_filter:
+            SPAM_LINK_KEYWORDS = [".com", "dot com", ".net", "dot net", ".xyz", "dot xyz", "http", "www", "discord.gg",
+                                  "free viewers"]
+
+            if any(keyword in message.lower() for keyword in SPAM_LINK_KEYWORDS):
+                logging.info(f"TTS skipped for {username}: potential spam or link")
+                return 0
+
+            # Repeated character spam
+            if re.search(r"(.)\1{4,}", message.lower()):
+                logging.info(f"TTS skipped for {username}: repeated character spam")
+                return 0
+
+            # Repeated phrase spam (1–5 word phrase repeated at least 3 times)
+            if re.search(r"(\b\w+\b(?:\s+\b\w+\b){0,4})\s+\1\s+\1", message.lower()):
+                logging.info(f"TTS skipped for {username}: repeated phrase spam")
+                return 0
 
         estimated_duration = len(message.split()) * 500
 

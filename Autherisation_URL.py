@@ -204,3 +204,218 @@ def autherise(client_id, client_secret):
 
     return f"oauth:{access_token}"  # Use this directly in IRC connection
 
+import requests
+import webbrowser
+import json
+import http.server
+import socketserver
+import threading
+import logging
+import time
+import urllib.parse
+import os
+
+# Redirect URI must match the one registered in Google Cloud Console for your OAuth client
+YOUTUBE_REDIRECT_URI = "http://localhost:8082"
+
+YOUTUBE_OAUTH_SCOPES = [
+    "https://www.googleapis.com/auth/youtube",
+    "https://www.googleapis.com/auth/youtube.force-ssl",
+    "https://www.googleapis.com/auth/youtube.readonly",
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtubepartner",
+    "https://www.googleapis.com/auth/youtube.channel-memberships.creator",
+    "https://www.googleapis.com/auth/youtube.manage",
+    "https://www.googleapis.com/auth/youtube.readonly",
+    "https://www.googleapis.com/auth/youtube.transaction",
+    "https://www.googleapis.com/auth/youtube.moderation",
+    "https://www.googleapis.com/auth/youtube.channel-memberships.creator"
+]
+
+
+YOUTUBE_OAUTH_SCOPE = " ".join(YOUTUBE_OAUTH_SCOPES)
+
+
+class YouTubeOAuthHandler(http.server.SimpleHTTPRequestHandler):
+    """Handles YouTube OAuth redirect and captures the authorization code."""
+    auth_code = None
+
+    def do_GET(self):
+        parsed_path = urllib.parse.urlparse(self.path)
+        query = urllib.parse.parse_qs(parsed_path.query)
+        if "code" in query:
+            YouTubeOAuthHandler.auth_code = query["code"][0]
+            self.send_response(200)
+            self.send_header("Content-type", "text/html")
+            self.end_headers()
+            self.wfile.write(b"<h1>YouTube authorization complete. You may close this window.</h1>")
+        elif "error" in query:
+            self.send_response(400)
+            self.end_headers()
+            self.wfile.write(b"<h1>YouTube authorization failed or denied.</h1>")
+        else:
+            self.send_response(400)
+            self.end_headers()
+
+
+def start_youtube_http_server():
+    """Starts the local server to handle YouTube redirect."""
+    httpd = socketserver.TCPServer(("localhost", 8082), YouTubeOAuthHandler)
+    server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    server_thread.start()
+    return httpd
+
+
+def authorise_youtube(client_id, client_secret):
+    """Full YouTube OAuth2 flow to get access and refresh tokens."""
+
+    auth_url = (
+        "https://accounts.google.com/o/oauth2/v2/auth"
+        f"?client_id={client_id}"
+        f"&redirect_uri={urllib.parse.quote(YOUTUBE_REDIRECT_URI)}"
+        f"&response_type=code"
+        f"&scope={urllib.parse.quote(YOUTUBE_OAUTH_SCOPE)}"
+        "&access_type=offline"  # To get refresh token
+        "&prompt=consent"  # Force consent every time, to ensure refresh token
+    )
+
+    print("\nIf your browser doesn't open automatically, paste this into your browser:\n")
+    print(auth_url + "\n")
+    webbrowser.open(auth_url)
+
+    httpd = start_youtube_http_server()
+    logging.info("Waiting for YouTube OAuth redirect on port 8082...")
+
+    timeout = 120  # seconds, YouTube flow might take longer
+    start_time = time.time()
+    while YouTubeOAuthHandler.auth_code is None:
+        if time.time() - start_time > timeout:
+            logging.error("OAuth timeout: No code received within 120 seconds.")
+            httpd.shutdown()
+            httpd.server_close()
+            return None
+        time.sleep(1)
+
+    httpd.shutdown()
+    httpd.server_close()
+
+    auth_code = YouTubeOAuthHandler.auth_code
+    logging.info(f"Received YouTube auth code: {auth_code}")
+
+    # Exchange code for tokens
+    token_url = "https://oauth2.googleapis.com/token"
+    payload = {
+        "code": auth_code,
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "redirect_uri": YOUTUBE_REDIRECT_URI,
+        "grant_type": "authorization_code",
+    }
+
+    response = requests.post(token_url, data=payload)
+    logging.info(f"YouTube token exchange response: {response.status_code} - {response.text}")
+
+    if response.status_code != 200:
+        logging.error("Failed to exchange code for YouTube tokens.")
+        return None
+
+    token_data = response.json()
+    access_token = token_data.get("access_token")
+    refresh_token = token_data.get("refresh_token", "")
+
+    if not access_token:
+        logging.error("Access token missing from YouTube token response.")
+        return None
+
+    logging.info("Access token received and validated from YouTube.")
+
+    # Save tokens to settings.json
+    try:
+        settings = {}
+        if os.path.exists("settings.json"):
+            with open("settings.json", "r") as f:
+                settings = json.load(f)
+
+        settings["YouTube_Token"] = access_token
+        settings["YouTube_Refresh_Token"] = refresh_token
+
+        with open("settings.json", "w") as f:
+            json.dump(settings, f, indent=4)
+
+        logging.info("Updated YouTube_Token and refresh token in settings.json.")
+    except Exception as e:
+        logging.warning(f"Could not update settings.json with YouTube tokens: {e}")
+
+    return access_token
+
+
+def refresh_youtube_token(client_id, client_secret, refresh_token):
+    """Refresh YouTube access token using refresh token."""
+    token_url = "https://oauth2.googleapis.com/token"
+    payload = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "refresh_token": refresh_token,
+        "grant_type": "refresh_token",
+    }
+
+    response = requests.post(token_url, data=payload)
+    logging.info(f"YouTube token refresh response: {response.status_code} - {response.text}")
+
+    if response.status_code != 200:
+        logging.error("Failed to refresh YouTube token.")
+        return None
+
+    token_data = response.json()
+    new_access_token = token_data.get("access_token")
+    if not new_access_token:
+        logging.error("No access token returned on refresh.")
+        return None
+
+    # Update settings.json with new access token
+    try:
+        settings = {}
+        if os.path.exists("settings.json"):
+            with open("settings.json", "r") as f:
+                settings = json.load(f)
+
+        settings["YouTube_Token"] = new_access_token
+        with open("settings.json", "w") as f:
+            json.dump(settings, f, indent=4)
+
+        logging.info("Refreshed YouTube access token saved in settings.json.")
+    except Exception as e:
+        logging.warning(f"Could not update settings.json with refreshed YouTube token: {e}")
+
+    return new_access_token
+
+def authenticate_youtube(client_id, client_secret):
+    """Try existing token, refresh if needed, else reauthorize."""
+    if not os.path.exists("settings.json"):
+        logging.info("settings.json not found. Starting full YouTube OAuth.")
+        return authorise_youtube(client_id, client_secret)
+
+    with open("settings.json", "r") as f:
+        settings = json.load(f)
+
+    access_token = settings.get("YouTube_Token")
+    refresh_token = settings.get("YouTube_Refresh_Token")
+
+    # Validate current token with a lightweight API call
+    headers = {"Authorization": f"Bearer {access_token}"}
+    response = requests.get("https://www.googleapis.com/youtube/v3/channels?part=id&mine=true", headers=headers)
+
+    if response.status_code == 200:
+        logging.info("YouTube access token is valid.")
+        return access_token
+    else:
+        logging.warning(f"Access token invalid (status {response.status_code}). Attempting refresh...")
+
+    if refresh_token:
+        new_token = refresh_youtube_token(client_id, client_secret, refresh_token)
+        if new_token:
+            logging.info("YouTube token successfully refreshed.")
+            return new_token
+
+    logging.warning("Refresh failed or no refresh token. Falling back to full OAuth.")
+    return authorise_youtube(client_id, client_secret)
