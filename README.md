@@ -7,6 +7,8 @@ Made by foxinbox
 ### Set up;
 
 - Check requirements.txt to see what libraries you will need to install with pip
+  ```bash
+   pip install -r requirements.txt```
 - Download all the files in the repository
 - Open settings.json and adjust the settings you want for the bot
 - Go to dev.Twitch.tv in the top right hand corner of the screen, click your console, click register your application, give it a name, OAuth Redirect URL http://localhost:8081, select chat bot, click create, click manage on the bot you created, copy the client ID to your settings.json, click create secret, copy the client secret to your settings.json, put your twitch name in settings.json
