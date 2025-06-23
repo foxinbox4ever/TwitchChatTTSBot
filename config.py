@@ -15,6 +15,7 @@ TTS_Volume = 0.8
 TTS_Shout_Volume = 1.0
 TTS_Random_Voice = False
 TTS_Voice = 0
+Sanity_Bar = False
 
 # Global settings dictionary
 settings_data = {}
@@ -27,6 +28,7 @@ def load_settings(settings_path):
     global Twitch_Bot, YouTube_Bot
     global sound_effects_cooldown, OBS_Browser_Source, OBS_Bobble_image
     global TTS_Access, TTS_Volume, TTS_Shout_Volume, TTS_Random_Voice, TTS_Voice
+    global Sanity_Bar
 
     with open(settings_path, 'r') as file:
         settings_data = json.load(file)
@@ -38,6 +40,7 @@ def load_settings(settings_path):
     OBS_Browser_Source = settings_data.get("OBS_Browser_Source", False)
     OBS_Bobble_image = settings_data.get("OBS_Bobble_image", "dwightHead.png")
     TTS_Access = settings_data.get("TTS_Access", "all").lower()
+    Sanity_Bar = settings_data.get("Sanity_Bar", False)
 
     try:
         TTS_Volume = float(settings_data.get("TTS_Volume", 0.8))
@@ -85,7 +88,8 @@ def process_settings(settings_path):
         "TTS_Volume": TTS_Volume,
         "TTS_Shout_Volume": TTS_Shout_Volume,
         "TTS_Random_Voice": TTS_Random_Voice,
-        "TTS_Voice": TTS_Voice
+        "TTS_Voice": TTS_Voice,
+        "Sanity_Bar": Sanity_Bar
     }
 
 

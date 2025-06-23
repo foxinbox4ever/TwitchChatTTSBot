@@ -11,7 +11,8 @@ import aiohttp
 
 from BotTTS import text_to_shout, text_to_speech
 from Viewers import viewers
-from config import settings_data, get_social_links, OBS_Browser_Source
+from config import settings_data, get_social_links, OBS_Browser_Source, Sanity_Bar
+
 
 class BaseCommand:
     user_cooldowns = {}  # Store cooldowns for each user per command
@@ -550,6 +551,58 @@ async def create_twitch_poll(token, client_id, broadcaster_id, question, options
         logging.error(f"Exception during Twitch poll creation: {e}")
         return False, str(e)
 
+class SanityCommand(BaseCommand):
+    Current_Sanity = 100
+    sanity_responses = {}
+
+    def __init__(self):
+        super().__init__(name="!sanity", cooldown=2, description="Vote on the streamer's current sanity level (1–100)")
+
+    async def execute(self, connection, username, message, channel, *args):
+        try:
+            parts = message.strip().split()
+            if len(parts) > 1:
+                value = int(parts[1])
+                if not (1 <= value <= 100):
+                    connection.privmsg(channel, f"@{username}, please enter a number between 1 and 100.")
+                    return
+
+                # Store or update the user's vote
+                self.__class__.sanity_responses[username] = value
+                logging.info(f"Sanity vote by {username}: {value}")
+
+                # Calculate new average sanity
+                total = sum(self.sanity_responses.values())
+                count = len(self.sanity_responses)
+                if count == 0:
+                    return
+
+                avg_sanity = round(total / count)
+                self.__class__.Current_Sanity = avg_sanity
+
+                # Send to OBS browser source via WebSocket (only if active)
+                if OBS_Browser_Source and Sanity_Bar:
+                    sanity_payload = {
+                        "type": "sanity",
+                        "value": avg_sanity
+                    }
+                    await asyncio.gather(*[
+                        client.send(json.dumps(sanity_payload)) for client in connected_clients
+                    ])
+                    logging.info(f"Updated sanity sent to OBS: {sanity_payload}")
+
+                # Confirm vote in chat
+                connection.privmsg(channel,
+                                   f"@{username} Your vote has been recorded. Current sanity: {avg_sanity}/100")
+
+            else:
+                # Just show current sanity
+                avg_sanity = self.__class__.Current_Sanity
+                connection.privmsg(channel,
+                                   f"@{username} Current sanity is {avg_sanity}/100 with {len(self.sanity_responses)} vote(s).")
+
+        except ValueError:
+            connection.privmsg(channel, f"@{username}, please provide a number like `!sanity 85`.")
 
 # This dictionary helps map command names to their respective classes
 COMMANDS = {
@@ -564,6 +617,11 @@ COMMANDS = {
     "!uptime": UptimeCommand(),
     "!dadjoke": DadJokeCommand(),
     "!socials": SocialsCommand(),
-    "!vote": VoteCommand()
+    "!vote": VoteCommand(),
+    "!sanity": SanityCommand()
 }
+
 commands_list = ', '.join(COMMANDS.keys())
+
+if Sanity_Bar and not OBS_Browser_Source:
+    logging.warning("OBS browser source has to be active for the sanity bar")

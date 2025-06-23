@@ -30,12 +30,12 @@ async def main():
 
     threads = []
 
-    if settings.get("Twitch_Bot"):
+    if settings.get("Twitch_Bot", False):
         t = threading.Thread(target=start_twitch_bot, name="TwitchBot")
         t.start()
         threads.append(t)
 
-    if settings.get("YouTube_Bot"):
+    if settings.get("YouTube_Bot", False):
         y = threading.Thread(target=start_youtube_bot, name="YouTubeBot")
         y.start()
         threads.append(y)
