@@ -8,7 +8,7 @@ from googleapiclient.discovery import build
 from BotTTS import text_to_speech
 from Commands import COMMANDS, VoteCommand
 from SoundEffect import play_sound_from_file
-from config import process_settings, sound_effects
+from config import settings_data, sound_effects
 from Viewers import viewers, new_viewer_wrapper, remove_viewer
 from Autherisation_URL import authenticate_youtube
 
@@ -65,7 +65,7 @@ def handle_chat_message_wrapper(username, message):
 
 async def handle_chat_message(username, message):
     try:
-        command_name = message.split(" ")[0]
+        command_name = message.split(" ")[0].lower()
         command = COMMANDS.get(command_name)
 
         if command:
@@ -93,11 +93,10 @@ async def handle_chat_message(username, message):
 def run_YouTube_Bot():
     global youtube, live_chat_id
 
-    settings = process_settings("settings.json")
-    api_key = settings.get("YouTube_API_Key")
-    channel_id = settings.get("YouTube_Channel_ID")
-    client_id = settings.get("YouTube_Client_ID")
-    client_secret = settings.get("YouTube_Client_Secret")
+    api_key = settings_data.get("YouTube_API_Key")
+    channel_id = settings_data.get("YouTube_Channel_ID")
+    client_id = settings_data.get("YouTube_Client_ID")
+    client_secret = settings_data.get("YouTube_Client_Secret")
 
     if not api_key or not channel_id or not client_id or not client_secret:
         logging.error("Missing YouTube credentials in settings.json.")

@@ -1,94 +1,145 @@
-﻿# TwitchChatTTSBot
-This is a simple twitch bot that handles TTS for chat and a browser source for OBS. \
-Made with python 3.10\
-Made by foxinbox 
-[twitch](https://www.twitch.tv/foxinbox4ever)
+# TwitchChatTTSBot
+A Twitch (and partial YouTube) bot that handles TTS for chat and a browser source for OBS.  
+Made with Python 3.10  
+Made by foxinbox — [Twitch](https://www.twitch.tv/foxinbox4ever)
 
-### Set up;
+---
 
-- Check requirements.txt to see what libraries you will need to install with pip
+### Requirements
+
+- Python 3.10+
+- Install dependencies: `pip install -r requirements.txt`
+- Also install the TTS engine: `pip install edge-tts`
+
+The bot can run on a **remote server (e.g. Ubuntu)** with the OBS browser source on your local Windows PC. See the OBS setup section below.
+
+---
+
+### Set up
+
 - Download all the files in the repository
-- Open settings.json and adjust the settings you want for the bot
-- Go to dev.Twitch.tv in the top right hand corner of the screen, click your console, click register your application, give it a name, OAuth Redirect URL http://localhost:8081, select chat bot, click create, click manage on the bot you created, copy the client ID to your settings.json, click create secret, copy the client secret to your settings.json, put your twitch name in settings.json
-- run Bot.py
-- The first time you run it, your browser should open and ask you to authenticate the bot. Please ensure you're logged in on the same account as the one that you created the bot in the Twitch dev portal
+- Copy `settings.json` and fill in your credentials (see Settings section below)
+- Go to [dev.twitch.tv](https://dev.twitch.tv), click your console → Register Your Application:
+  - OAuth Redirect URL: `http://localhost:8081`
+  - Category: Chat Bot
+  - Copy the **Client ID** and **Client Secret** into `settings.json`
+  - Put your Twitch channel name in `settings.json`
+- Run `Bot.py`
+- The first time you run it, your browser will open and ask you to authenticate. Make sure you're logged in on the same account used to create the bot in the Twitch dev portal.
 
-### Set up OBS/Streamlabs browser source;
+---
 
-- Go open settings.json and set OBS_Browser_Source to true
-- Open OBS/Streamlabs
-- Click the check mark for local file
-- Change the file to the tts_display.html you installed
-- Adjust height and width to your liking
-- Click the check mark for refresh browser when scene becomes active
-- Run Bot.py to start the websocket server
+### Set up OBS browser source
 
-### Built-in Commands;
+The TTS audio is generated on the bot's host machine and streamed to OBS via WebSocket — no local audio playback required.
 
-- "!help" - Lists all commands, or gives help on a specific one.
-- "!shout" - Sends louder TTS (volume configurable).
-- "!raffel" - Picks a random viewer (optionally only subs or followers).
-- "!lurk" - 	Says you're lurking.
-- "!subs" - Lists current subscribers.
-- "!discord" - Posts your Discord link.
-- "!hug" - Sends a hug message (target another user if desired).
-- "!braincells" - Shows your brain cell count.
-- "!uptime" - Shows how long the streamer has been live.
-- "!dadjoke" - Sends a dad joke from JokeAPI (AI version coming soon).
-- "!socials" - Lists all social media links from settings.json.
-- "!vote" - Lets mods create a chat poll (OBS-based or Twitch native).
-- "!sanity" - Viewers vote on the streamer's sanity level (can show in OBS).
+**If the bot is running on the same machine as OBS:**
+- In OBS, add a Browser Source and tick **Local File**
+- Point it to `tts_display.html`
 
-  If you have any new command ideas, join my twitch discord and message me there. [Discord](https://discord.gg/UM3rmnf9zV)
+**If the bot is running on a remote server (e.g. Ubuntu):**
+- In OBS, add a Browser Source and tick **Local File**
+- Set the URL to:
+  ```
+  file:///C:/path/to/tts_display.html?host=<server-ip>:8080
+  ```
+  Replace `<server-ip>` with your server's local IP (e.g. `192.168.1.50`)
+- Make sure port `8080` is open on the server (`sudo ufw allow 8080`)
+
+**Both setups:**
+- Set `OBS_Browser_Source` to `true` in `settings.json`
+- In OBS Audio Mixer → Advanced Audio Settings, find the browser source and set **Audio Monitoring** to **Monitor and Output** so you can hear TTS locally
+- Tick **Refresh browser when scene becomes active**
+- Run `Bot.py` to start the WebSocket server
+
+---
+
+### Built-in Commands
+
+| Command | Description |
+|---|---|
+| `!help` | Lists all commands, or gives help on a specific one |
+| `!shout` | Sends louder TTS (volume configurable via `TTS_Shout_Volume`) |
+| `!raffle` | Picks a random viewer (optionally only subs or followers) |
+| `!lurk` | Says you're lurking |
+| `!subs` | Lists current subscribers |
+| `!discord` | Posts your Discord link |
+| `!hug` | Sends a hug message (can target another user) |
+| `!braincells` | Shows your brain cell count |
+| `!uptime` | Shows how long the streamer has been live |
+| `!dadjoke` | Sends a dad joke from JokeAPI |
+| `!socials` | Lists all social media links from `settings.json` |
+| `!vote` | Lets mods create a chat poll (shown in OBS browser source) |
+| `!sanity` | Viewers vote on the streamer's sanity level |
+
+If you have new command ideas, join the Discord and message there: [Discord](https://discord.gg/UM3rmnf9zV)
+
+---
 
 ### Settings
 
-- Twitch_Bot - true or false, enables the twitch bot.
-- Twitch_Client_ID - this is your client ID and is required to run the twitch bot. (see setup to find out how to get one)
-- Twitch_Client_Secret - this is your client secret and is required to run the twitch bot. (see setup to find out how to get one)
-- Twitch_Token - this is your bots oauth token for twitch allowing it to interact with the API. (to store the token)
-- Twitch_Refresh_Token - this is used to refresh the oauth token when its no longer valid.
-- Twitch_Name - this is your twitch channel name.
-- YouTube_Bot - true or false, enables the youtube bot. The youtube bot functionality isnt complete yet, so keep it false.
-- YouTube_Client_ID - this is your client ID and is required to run the youtube bot.
-- YouTube_Client_Secret - this is your client secret and is required to run the youtube bot.
-- YouTube_Token - this is your bots oauth token for youtube allowing it to interact with the API. (to store the token)
-- YouTube_Channel_ID - this is your youtube channel ID and is required to run the youtube bot.
-- TTS_Access - all, followers, subs, or off. Allows you to specify which users are allowed to use the TTS.
-- TTS_Volume - 0 - 1. Allows you to set the volume of the TTS.
-- TTS_Shout_Volume - 0 - 1. Allows you to set the TTS volume for the "!shout" command.
-- TTS_Random_Voice - true or false. Allows you to have a random voice for each message from the downloaded windows voices.
-- TTS_Voice - 0 - the number of installed voices (for English up to 2). Sets the TTS voice.
-- enable_sound_effects - true or false. Enables or disables the sound effects functionality.
-- sound_effects_file_path - file path. Is the file path for the sound effects.
-- sound_effects_cooldown - number. Allows you to set the cool down for the sound effects in secounds.
-- OBS_Browser_Source - true or false. Allows you to turn the OBS browser source functionality on or off.
-- OBS_Bobble_image - file path. This is the file path of the bobble image for the browser source.
-- Sanity_Bar - true or false. Allows you to turn the OBS browser source functionality on or off for the sanity bar.
+| Key | Value | Description |
+|---|---|---|
+| `Twitch_Bot` | `true`/`false` | Enables the Twitch bot |
+| `Twitch_Client_ID` | string | Your Twitch application Client ID |
+| `Twitch_Client_Secret` | string | Your Twitch application Client Secret |
+| `Twitch_Token` | string | OAuth token (auto-filled on first run) |
+| `Twitch_Refresh_Token` | string | Refresh token (auto-filled on first run) |
+| `Twitch_Name` | string | Your Twitch channel name |
+| `YouTube_Bot` | `true`/`false` | Enables the YouTube bot (experimental) |
+| `YouTube_Client_ID` | string | Your YouTube OAuth Client ID |
+| `YouTube_Client_Secret` | string | Your YouTube OAuth Client Secret |
+| `YouTube_Token` | string | YouTube access token (auto-filled) |
+| `YouTube_Channel_ID` | string | Your YouTube channel ID |
+| `TTS_Access` | `all`/`followers`/`subs`/`off` | Who is allowed to use TTS |
+| `TTS_Shout_Volume` | `0.0`–`1.0` | Volume for the `!shout` command |
+| `TTS_Random_Voice` | `true`/`false` | Assigns each user a random voice that stays consistent for them throughout the session |
+| `TTS_Voice` | string | Voice name used when `TTS_Random_Voice` is `false` (e.g. `"en-GB-SoniaNeural"`) — run `edge-tts --list-voices` to see all options |
+| `OBS_Websocket_Port` | number | Port the WebSocket server listens on (default `8080`) |
+| `OBS_Browser_Source` | `true`/`false` | Enables the OBS browser source and WebSocket TTS delivery |
+| `OBS_Bobble_image` | file path | Path to the bobble head image shown in the browser source |
+| `Sanity_Bar` | `true`/`false` | Enables the sanity bar in the OBS browser source |
+| `enable_sound_effects` | `true`/`false` | Enables or disables sound effects |
+| `sound_effects_file_path` | file path | Folder containing sound effect MP3 files |
+| `sound_effects_cooldown` | number | Default cooldown between sound effects (seconds) |
 
-### Add more social media links;
+---
 
-- Add the link in this format to settings.json "Social_Link": "URL" (ensure you put _Link after the name of the link)
+### Add more social media links
 
-### Add more sound effects;
+Add a link in this format to `settings.json`:
+```json
+"Social_Link": "URL"
+```
+The key must end in `_Link`.
 
-- Save the mp3 file to the sound effects folder (location of this can be adjusted in settings)
-- Adjust Bot.py so it plays the sound effect when you want it to with play_sound_from_file(sound_effects, "Example.mp3", True)
-- To make it play without a cooldown play_sound_from_file(sound_effects, "Example.mp3", False)
-- To change the cooldown e.g set the cooldown to 5 seconds set_sound_cooldown_from_file(sound_effects, "Example.mp3", 5) or adjust in the settings folder what the default cooldown is
+---
 
-### Add more commands;
+### Add more sound effects
 
-- Create a new class in Commands.py that imports the BaseCommand
-- Create a function in the class called execute (this is where you write what the command does)
-- Add it to the COMMANDS dictionary with how you want the command to be called by the users as the key 
+- Save the MP3 to your sound effects folder
+- In `Bot.py`, call `play_sound_from_file(sound_effects, "Example.mp3", True)` (second argument enables cooldown)
+- To play without a cooldown: `play_sound_from_file(sound_effects, "Example.mp3", False)`
+- To set a per-file cooldown: `set_sound_cooldown_from_file(sound_effects, "Example.mp3", 5)`
 
-See the other commands that I have already written as an example 
+---
+
+### Add more commands
+
+- Create a new class in `Commands.py` that extends `BaseCommand`
+- Add an `async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id)` method
+- Add the class to the `COMMANDS` dictionary with the trigger string as the key
+
+See the existing commands in `Commands.py` as examples.
+
+---
 
 ### Known issues
-Claro read TTS not fully setup yet (deleted from the repository)
-The youtube bot has not been tested and will not work with commands or most things.
+
+- The YouTube bot is experimental and not fully tested — keep `YouTube_Bot` set to `false`.
+
+---
 
 Enjoy using the bot and customising it to your community's vibe!
 
-If you have any issues join my [discord](https://discord.gg/UM3rmnf9zV)
+If you have any issues join the [Discord](https://discord.gg/UM3rmnf9zV)

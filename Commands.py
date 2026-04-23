@@ -68,7 +68,7 @@ class HelpCommand(BaseCommand):
     def __init__(self):
         super().__init__(name="!help", cooldown=5, description="Displays a list of available commands or details about a specific command.")
 
-    def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
+    async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
         if self.can_execute(username):
             # Check if the user has specified a command for help
             message_parts = message.split()
@@ -121,7 +121,7 @@ class RaffleCommand(BaseCommand):
             else:
                 eligible_viewers = [viewer.username for viewer in viewers if viewer.username != username]
 
-            chosen_viewer = random.choice(eligible_viewers) if eligible_viewers else " no eligible viewers"
+            chosen_viewer = random.choice(eligible_viewers) if eligible_viewers else "no eligible viewers"
             response = f"Hello @{username}, the winner of your raffle is: @{chosen_viewer}"
             connection.privmsg(channel, response)
             logging.info(f"Executed {self.name} command for {username}")
@@ -395,12 +395,15 @@ class VoteCommand(BaseCommand):
             connection.privmsg(channel, "⚠️ A vote is already active!")
             return
 
-        logging.info(f"Executed {self.name} command for {username}")
+        logging.info(f"Executing {self.name} command for {username}")
         parts = message.split(" ", 1)
 
         # Only moderators can start a vote
         if username not in [viewer.username for viewer in viewers if viewer.mod]:
-            connection.privmsg(channel, f"@{username}, only moderators can start a vote!")
+            if self.__class__.vote_is_active and len(parts) > 1 and parts[1].isdigit():
+                await VoteCommand.handle_vote_response(connection, username, parts[1], channel)
+            else:
+                connection.privmsg(channel, f"@{username}, only moderators can start a vote!")
             return
 
         if len(parts) > 1 and "?" in parts[1]:
@@ -420,6 +423,7 @@ class VoteCommand(BaseCommand):
                 )
 
                 if OBS_Browser_Source:
+                    logging.info("Sending vote to browser source")
                     self.__class__.active_vote = {
                         "question": question.strip() + "?",
                         "options": options,
@@ -442,6 +446,9 @@ class VoteCommand(BaseCommand):
                         client.send(json.dumps(vote_payload)) for client in connected_clients
                     ])
                     logging.info(f"Vote sent to browser source: {vote_payload}")
+                    connection.privmsg(channel,
+                                       f"@{username} started a vote: {question.strip()}?")
+                    connection.privmsg(channel, "Type the number of your choice to vote!")
                 else:
                     logging.info("OBS web browser source is offline, creating Twitch poll instead.")
                     success, result = await create_twitch_poll(token, client_id, broadcaster_id, question, options)
@@ -457,6 +464,8 @@ class VoteCommand(BaseCommand):
             except Exception as e:
                 logging.error(f"Error while processing vote command: {e}")
                 connection.privmsg(channel, "⚠️ Error starting vote.")
+        else:
+            connection.privmsg(channel, f"@{username}, please use the correct format: !vote Question? 1.OptionOne 2.OptionTwo [3.OptionThree ...]")
 
     @classmethod
     async def handle_vote_response(cls, connection, username, message, channel):
@@ -559,6 +568,9 @@ class SanityCommand(BaseCommand):
         super().__init__(name="!sanity", cooldown=2, description="Vote on the streamer's current sanity level (1–100)")
 
     async def execute(self, connection, username, message, channel, *args):
+        if not self.can_execute(username):
+            self.on_cooldown(connection, username, channel)
+            return
         try:
             parts = message.strip().split()
             if len(parts) > 1:
@@ -581,7 +593,7 @@ class SanityCommand(BaseCommand):
                 self.__class__.Current_Sanity = avg_sanity
 
                 # Send to OBS browser source via WebSocket (only if active)
-                if OBS_Browser_Source and Sanity_Bar:
+                if Sanity_Bar:
                     sanity_payload = {
                         "type": "sanity",
                         "value": avg_sanity
@@ -604,6 +616,38 @@ class SanityCommand(BaseCommand):
         except ValueError:
             connection.privmsg(channel, f"@{username}, please provide a number like `!sanity 85`.")
 
+class ShoutOutCommand(BaseCommand):
+    def __init__(self):
+        super().__init__(
+            name="!so",
+            cooldown=60,
+            description="Give a streamer you like or raided with a shout out."
+        )
+
+    async def execute(self, connection, username, message, channel, *args):
+        if not self.can_execute(username):
+            self.on_cooldown(connection, username, channel)
+            return
+
+        parts = message.split()
+
+        # Check if a username was provided
+        if len(parts) < 2:
+            connection.privmsg(channel, f"@{username}, please provide a username")
+            return
+
+        # Get username and remove @ if included
+        shoutout_user = parts[1].lstrip("@").lower()
+
+        response = (
+            f"🎉 Shout out to @{shoutout_user}! "
+            f"Go check them out at https://twitch.tv/{shoutout_user} 🔥"
+        )
+
+        logging.info(f"{username} is attempting to shoutout: {shoutout_user}")
+
+        connection.privmsg(channel, response)
+
 # This dictionary helps map command names to their respective classes
 COMMANDS = {
     "!help": HelpCommand(),
@@ -618,7 +662,8 @@ COMMANDS = {
     "!dadjoke": DadJokeCommand(),
     "!socials": SocialsCommand(),
     "!vote": VoteCommand(),
-    "!sanity": SanityCommand()
+    "!sanity": SanityCommand(),
+    "!so": ShoutOutCommand()
 }
 
 commands_list = ', '.join(COMMANDS.keys())

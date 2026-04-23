@@ -1,59 +1,116 @@
 import logging
 import random
-import pyttsx3
 import re
+import base64
+import io
+
+import edge_tts
 
 from TTSObsWebsocket import update_latest_message
 from config import load_settings
 from Viewers import viewers
 
-# Initialize TTS engine
-tts_engine = pyttsx3.init()
-
-# Get available voices and log them
-voices = tts_engine.getProperty('voices')
-logging.info("Available TTS voices:")
-for i, voice in enumerate(voices):
-    logging.info(f"  [{i}] Name: {voice.name}, ID: {voice.id}, Lang: {voice.languages}")
-
-
-# Load settings
 settings = load_settings("settings.json")
 OBS_Browser_Source = settings.get("OBS_Browser_Source", False)
 TTS_Access = settings.get("TTS_Access", "all").lower()
-TTS_Volume = float(settings.get("TTS_Volume", 0.8))
 TTS_Shout_Volume = float(settings.get("TTS_Shout_Volume", 1.0))
 TTS_Random_Voice = settings.get("TTS_Random_Voice", False)
-TTS_Voice = int(settings.get("TTS_Voice", 0))
 
-# Get available voices
-voices = tts_engine.getProperty('voices')
+_voice_setting = settings.get("TTS_Voice", "en-GB-SoniaNeural")
+TTS_Voice = _voice_setting if isinstance(_voice_setting, str) else "en-GB-SoniaNeural"
 
+AVAILABLE_VOICES = [
+    # US
+    "en-US-AriaNeural", "en-US-JennyNeural", "en-US-MichelleNeural",
+    "en-US-MonicaNeural", "en-US-EmmaNeural", "en-US-GuyNeural",
+    "en-US-ChristopherNeural", "en-US-EricNeural", "en-US-RogerNeural",
+    "en-US-SteffanNeural", "en-US-AndrewNeural", "en-US-BrianNeural",
+    # GB
+    "en-GB-SoniaNeural", "en-GB-LibbyNeural", "en-GB-MaisieNeural",
+    "en-GB-RyanNeural", "en-GB-ThomasNeural",
+    "en-GB-AbbiNeural", "en-GB-AlfieNeural", "en-GB-BellaNeural",
+    "en-GB-ElliotNeural", "en-GB-EthanNeural", "en-GB-NoahNeural",
+    "en-GB-OliverNeural", "en-GB-OliviaNeural",
+    # AU
+    "en-AU-NatashaNeural", "en-AU-WilliamNeural", "en-AU-AnnetteNeural",
+    "en-AU-CarlyNeural", "en-AU-DarrenNeural", "en-AU-DuncanNeural",
+    "en-AU-ElsieNeural", "en-AU-FreyaNeural", "en-AU-JoanneNeural",
+    "en-AU-KenNeural", "en-AU-KimNeural", "en-AU-NeilNeural",
+    "en-AU-TimNeural", "en-AU-TinaNeural",
+    # CA
+    "en-CA-ClaraNeural", "en-CA-LiamNeural",
+    # IE
+    "en-IE-EmilyNeural", "en-IE-ConnorNeural",
+    # NZ
+    "en-NZ-MitchellNeural", "en-NZ-MollyNeural",
+    # ZA
+    "en-ZA-LeahNeural", "en-ZA-LukeNeural",
+    # SG
+    "en-SG-LunaNeural", "en-SG-WayneNeural",
+    # IN
+    "en-IN-NeerjaNeural", "en-IN-PrabhatNeural",
+    # PH
+    "en-PH-JamesNeural", "en-PH-RosaNeural",
+    # HK
+    "en-HK-SamNeural", "en-HK-YanNeural",
+]
 
-def set_tts_voice():
-    try:
-        if TTS_Random_Voice:
-            voice = random.choice(voices)
-        else:
-            if 0 <= TTS_Voice < len(voices):
-                voice = voices[TTS_Voice]
-            else:
-                voice = voices[0]  # fallback to first if index out of range
-        tts_engine.setProperty('voice', voice.id)
-    except Exception as e:
-        logging.error(f"Error setting TTS voice: {e}")
+_user_voices: dict[str, str] = {}
+
+SPAM_LINK_KEYWORDS = [
+    ".com", "dot com", ".net", "dot net", ".xyz", "dot xyz",
+    "http", "www", "discord.gg", "free viewers",
+]
 
 
 def user_allowed_tts(username):
     viewer_info = next((v for v in viewers if v.username.lower() == username.lower()), None)
-
     if TTS_Access == "off":
         return False
-    if TTS_Access == "subs" and not (viewer_info and viewer_info.is_subscribed):
+    if TTS_Access == "subs" and not (viewer_info and viewer_info.subscribed):
         return False
-    if TTS_Access == "followers" and not (viewer_info and viewer_info.is_following):
+    if TTS_Access == "followers" and not (viewer_info and viewer_info.following):
         return False
     return True
+
+
+def _get_voice_for_user(username: str) -> str:
+    key = username.lower()
+    if key not in _user_voices:
+        _user_voices[key] = random.choice(AVAILABLE_VOICES)
+        logging.info(f"Assigned voice {_user_voices[key]} to {username}")
+    return _user_voices[key]
+
+
+async def _generate_audio(text, username: str = "TTSystem"):
+    if TTS_Random_Voice:
+        assigned = _get_voice_for_user(username)
+        voices_to_try = [assigned] + [v for v in random.sample(AVAILABLE_VOICES, 2) if v != assigned]
+    else:
+        voices_to_try = [TTS_Voice] + random.sample(AVAILABLE_VOICES, 2)
+
+    last_error = None
+    for voice in voices_to_try:
+        try:
+            logging.info(f"Attempting TTS with voice: {voice}")
+            communicate = edge_tts.Communicate(text, voice)
+            buf = io.BytesIO()
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    buf.write(chunk["data"])
+            audio = buf.getvalue()
+            if not audio:
+                raise RuntimeError("Empty audio response")
+            logging.info(f"TTS audio generated with voice: {voice} ({len(audio)} bytes)")
+            if TTS_Random_Voice and voice != voices_to_try[0]:
+                _user_voices[username.lower()] = voice
+                logging.info(f"Updated voice for {username} to {voice} (original voice failed)")
+            return audio
+        except Exception as e:
+            logging.warning(f"Voice {voice} failed: {e}. Trying next voice...")
+            last_error = e
+
+    raise RuntimeError(f"All voices failed. Last error: {last_error}")
 
 
 async def text_to_speech(message):
@@ -63,8 +120,8 @@ async def text_to_speech(message):
         username = "TTSystem"
         apply_spam_filter = True
 
-        if "says" in message:
-            username_message = message.split("says")
+        if " says " in message:
+            username_message = message.split(" says ", 1)
             username = username_message[0].strip()
 
             if not user_allowed_tts(username):
@@ -75,37 +132,29 @@ async def text_to_speech(message):
             username_message = [username, message]
 
         if apply_spam_filter:
-            SPAM_LINK_KEYWORDS = [".com", "dot com", ".net", "dot net", ".xyz", "dot xyz", "http", "www", "discord.gg",
-                                  "free viewers"]
-
             if any(keyword in message.lower() for keyword in SPAM_LINK_KEYWORDS):
                 logging.info(f"TTS skipped for {username}: potential spam or link")
                 return 0
-
-            # Repeated character spam
             if re.search(r"(.)\1{4,}", message.lower()):
                 logging.info(f"TTS skipped for {username}: repeated character spam")
                 return 0
-
-            # Repeated phrase spam (1–5 word phrase repeated at least 3 times)
             if re.search(r"(\b\w+\b(?:\s+\b\w+\b){0,4})\s+\1\s+\1", message.lower()):
                 logging.info(f"TTS skipped for {username}: repeated phrase spam")
                 return 0
 
+        if not OBS_Browser_Source:
+            logging.warning("OBS_Browser_Source is disabled — TTS audio will not play.")
+            return 0
+
+        audio_bytes = await _generate_audio(message, username)
+        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
         estimated_duration = len(message.split()) * 500
 
-        if OBS_Browser_Source:
-            await update_latest_message(username_message[0], username_message[1], estimated_duration)
+        await update_latest_message(username_message[0], username_message[1], estimated_duration, audio_b64)
 
-        if tts_engine._inLoop:
-            tts_engine.endLoop()
-
-        set_tts_voice()
-        tts_engine.setProperty('volume', TTS_Volume)
-        tts_engine.say(message)
-        tts_engine.runAndWait()
-
+        logging.info("TTS done")
         return estimated_duration
+
     except Exception as e:
         logging.error(f"Error in TTS: {e}")
         return 0
@@ -114,27 +163,29 @@ async def text_to_speech(message):
 async def text_to_shout(message):
     try:
         logging.info("TTS shout activated for message")
-        username_message = message.split("shouts")
+        username_message = message.split(" shouts ", 1)
         username = username_message[0].strip()
 
         if not user_allowed_tts(username):
             logging.info(f"TTS shout skipped for {username}: Not allowed by TTS_Access setting.")
             return 0
 
+        if not OBS_Browser_Source:
+            logging.warning("OBS_Browser_Source is disabled — TTS shout will not play.")
+            return 0
+
+        audio_bytes = await _generate_audio(message, username)
+        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
         estimated_duration = len(message.split()) * 500
 
-        if OBS_Browser_Source:
-            await update_latest_message(username_message[0], username_message[1], estimated_duration)
-
-        if tts_engine._inLoop:
-            tts_engine.endLoop()
-
-        set_tts_voice()
-        tts_engine.setProperty('volume', TTS_Shout_Volume)
-        tts_engine.say(message)
-        tts_engine.runAndWait()
+        await update_latest_message(
+            username_message[0], username_message[1],
+            estimated_duration, audio_b64,
+            volume=TTS_Shout_Volume,
+        )
 
         return estimated_duration
+
     except Exception as e:
         logging.error(f"Error in TTS shout: {e}")
         return 0

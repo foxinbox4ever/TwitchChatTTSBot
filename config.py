@@ -4,6 +4,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 # Global variables
+_settings_loaded = False
 Twitch_Bot = True
 YouTube_Bot = False
 enable_sound_effects = False
@@ -23,14 +24,16 @@ settings_data = {}
 
 
 def load_settings(settings_path):
-    logging.info(f"Loading settings from {settings_path}")
-
-    global settings_data
+    global _settings_loaded, settings_data
     global Twitch_Bot, YouTube_Bot
     global sound_effects_cooldown, enable_sound_effects, sound_effects
     global OBS_Browser_Source, OBS_Bobble_image
     global TTS_Access, TTS_Volume, TTS_Shout_Volume, TTS_Random_Voice, TTS_Voice
     global Sanity_Bar
+
+    if _settings_loaded:
+        return settings_data
+    _settings_loaded = True
 
     with open(settings_path, 'r') as file:
         settings_data = json.load(file)

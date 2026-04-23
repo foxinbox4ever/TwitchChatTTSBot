@@ -204,17 +204,6 @@ def autherise(client_id, client_secret):
 
     return f"oauth:{access_token}"  # Use this directly in IRC connection
 
-import requests
-import webbrowser
-import json
-import http.server
-import socketserver
-import threading
-import logging
-import time
-import urllib.parse
-import os
-
 # Redirect URI must match the one registered in Google Cloud Console for your OAuth client
 YOUTUBE_REDIRECT_URI = "http://localhost:8082"
 
@@ -226,10 +215,8 @@ YOUTUBE_OAUTH_SCOPES = [
     "https://www.googleapis.com/auth/youtubepartner",
     "https://www.googleapis.com/auth/youtube.channel-memberships.creator",
     "https://www.googleapis.com/auth/youtube.manage",
-    "https://www.googleapis.com/auth/youtube.readonly",
     "https://www.googleapis.com/auth/youtube.transaction",
     "https://www.googleapis.com/auth/youtube.moderation",
-    "https://www.googleapis.com/auth/youtube.channel-memberships.creator"
 ]
 
 
