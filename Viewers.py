@@ -1,8 +1,9 @@
 import logging
+import threading
 import requests
-import asyncio
 
 viewers = []
+_viewers_lock = threading.Lock()
 
 class Viewer:
     def __init__(self, username, token, client_id, broadcaster_id):
@@ -145,44 +146,48 @@ class Viewer:
             logging.warning(f"Unexpected response when checking mod status: {response.status_code}")
             return False
 
-        def update_status(self):
-            self.following = self.check_if_follower()
-            self.subscribed = self.check_if_subbed()
-            self.mod = self.check_if_mod()
-            logging.info(f"Updated status for {self.username} — Follower: {self.following}, Sub: {self.subscribed}, Mod: {self.mod}")
+    def update_status(self):
+        self.following = self.check_if_follower()
+        self.subscribed = self.check_if_subbed()
+        self.mod = self.check_if_mod()
+        logging.info(f"Updated status for {self.username} — Follower: {self.following}, Sub: {self.subscribed}, Mod: {self.mod}")
 
 
-async def new_viewer(username, token, client_id, broadcaster_id):
+def new_viewer(username, token, client_id, broadcaster_id):
     username_lower = username.lower()
 
-    if any(viewer.username == username_lower for viewer in viewers):
-        logging.info(f"{username} already exists in the viewer list.")
-        return
+    with _viewers_lock:
+        if any(v.username == username_lower for v in viewers):
+            logging.info(f"{username} already exists in the viewer list.")
+            return
 
     viewer = Viewer(username=username, token=token, client_id=client_id, broadcaster_id=broadcaster_id)
-    viewers.append(viewer)
+
+    with _viewers_lock:
+        if any(v.username == username_lower for v in viewers):
+            return
+        viewers.append(viewer)
+
     logging.info(f"Added viewer: {viewer.username}")
     logging.info(f"Updated list of viewers: {[v.username for v in viewers]}")
 
 
 def new_viewer_wrapper(username, token, client_id, broadcaster_id):
     try:
-        asyncio.run(new_viewer(username, token, client_id, broadcaster_id))
+        new_viewer(username, token, client_id, broadcaster_id)
     except Exception as e:
-        logging.error(f"Error handling message from {username}: {e}")
+        logging.error(f"Error adding viewer {username}: {e}")
 
 
 def remove_viewer(username):
     username_lower = username.lower()
-    viewer_to_remove = next((v for v in viewers if v.username == username_lower), None)
-
-    if viewer_to_remove:
-        viewers.remove(viewer_to_remove)
-        logging.info(f"Removed viewer: {username}")
-    else:
-        logging.info(f"{username} was not found in the viewers list.")
-
-    logging.info(f"Updated list of viewers: {[v.username for v in viewers]}")
+    with _viewers_lock:
+        viewer_to_remove = next((v for v in viewers if v.username == username_lower), None)
+        if viewer_to_remove:
+            viewers.remove(viewer_to_remove)
+            logging.info(f"Removed viewer: {username}")
+        else:
+            logging.info(f"{username} was not found in the viewers list.")
 
 
 def get_broadcaster_id(token, client_id, username):

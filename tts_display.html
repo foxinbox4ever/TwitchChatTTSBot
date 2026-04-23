@@ -232,14 +232,26 @@
                             if (ws && ws.readyState === WebSocket.OPEN) {
                                 ws.send(JSON.stringify({ type: "vote-ended" }));
                             }
-                        }, 15000); // Show results for 30 seconds
+                        }, 15000); // Show results for 15 seconds
                     }
                 }, 1000);
             }
         }
 
+        function playAudio(b64, volume) {
+            try {
+                const audio = new Audio('data:audio/mp3;base64,' + b64);
+                audio.volume = Math.min(1.0, Math.max(0.0, volume || 1.0));
+                audio.play().catch(e => console.error('Audio play failed:', e));
+            } catch (e) {
+                console.error('Audio setup failed:', e);
+            }
+        }
+
         function connectWebSocket() {
-            ws = new WebSocket('ws://localhost:8080/');
+            const params = new URLSearchParams(window.location.search);
+            const wsHost = params.get('host') || 'localhost:8080';
+            ws = new WebSocket(`ws://${wsHost}/`);
 
             ws.onopen = () => {
                 console.log('WebSocket connection established');
@@ -249,6 +261,10 @@
             ws.onmessage = async (event) => {
                 const data = JSON.parse(event.data);
                 console.log(data);
+
+                if (data.audio) {
+                    playAudio(data.audio, data.volume);
+                }
 
                 if (data.imagePath) {
                     imagePath = data.imagePath;
@@ -290,8 +306,13 @@
                     messagesDiv.appendChild(messageElement);
                     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
-                    imageElement.src = imagePath || 'dwightHead.png';
-                    imageElement.style.display = 'block';
+                    if (!currentVote){
+                        imageElement.src = imagePath || 'dwightHead.png';
+                        imageElement.style.display = 'block';
+                    } else {
+                        imageElement.style.display = 'none'
+                    }
+
 
                     const ttsDuration = data.duration || 10000;
 

@@ -10,7 +10,7 @@ import asyncio
 from BotTTS import text_to_speech
 from Commands import COMMANDS, VoteCommand
 from SoundEffect import play_sound_from_file
-from config import process_settings, sound_effects
+from config import settings_data, sound_effects, enable_sound_effects
 from Viewers import viewers, new_viewer_wrapper, remove_viewer, get_broadcaster_id
 from Autherisation_URL import autherise
 
@@ -66,7 +66,7 @@ def handle_chat_message_wrapper(connection, username, message):
 async def handle_chat_message(connection, username, message):
     logging.info(f"Handling message from {username}: {message}")
     try:
-        command_name = message.split(" ")[0]
+        command_name = message.split(" ")[0].lower()
         command = COMMANDS.get(command_name)
 
         if command:
@@ -86,15 +86,17 @@ async def handle_chat_message(connection, username, message):
                 return
 
         # TTS fallback
-        tts_message = f"{username} says {message}"
-        await text_to_speech(tts_message)
+        if (username != "soundalerts"):
+            tts_message = f"{username} says {message}"
+            await text_to_speech(tts_message)
 
     except Exception as e:
         logging.error(f"Error handling chat message: {e}")
 
 def on_pubmsg(connection, event):
     username = event.source.nick
-    if username == "SoundAlerts":
+    if (username == "soundalerts"):
+        logging.info("Skipping SoundAlerts bot")
         return
 
     message = event.arguments[0]
@@ -102,7 +104,7 @@ def on_pubmsg(connection, event):
 
     if not user_found:
         threading.Thread(target=new_viewer_wrapper, args=(username, actual_token, client_id, broadcaster_id)).start()
-    threading.Thread(target=handle_chat_message_wrapper, args=(connection, username, message.lower())).start()
+    threading.Thread(target=handle_chat_message_wrapper, args=(connection, username, message)).start()
 
 def on_privnotice(connection, event):
     message = event.arguments[0] if event.arguments else ""
@@ -130,7 +132,7 @@ async def on_usernotice(connection, event):
     tags = {tag["key"]: tag["value"] for tag in event.tags}
     username = tags.get("login")
     msg_id = tags.get("msg-id")
-    tts_message = None  # Initialize early
+    tts_message = None
 
     # Log all tags (optional for debugging)
     logging.debug(f"USERNOTICE tags: {tags}")
@@ -185,7 +187,7 @@ async def on_usernotice(connection, event):
 
     elif msg_id == "resub":
         months = tags.get("msg-param-cumulative-months")
-        if months and months.isdigit() and months > 1:
+        if months and months.isdigit() and int(months) > 1:
             months_int = int(months)
             tts_message = f"{username} resubbed for {months_int} months, thank you very much for the sub!"
         else:
@@ -271,7 +273,7 @@ class IRCBot:
             self.connection.add_global_handler('endofnames', on_names)
             self.connection.add_global_handler('ping', on_ping)
             self.connection.add_global_handler('privnotice', on_privnotice)
-            self.connection.add_global_handler('usernotice', on_usernotice)
+            self.connection.add_global_handler('usernotice', on_usernotice_wrapper)
             self.connection.add_global_handler('all_events', on_any_event)  # Debug
 
     def run(self):
@@ -287,20 +289,17 @@ class IRCBot:
             logging.info("Bot disconnected.")
 
 def run_Twitch_Bot():
-    global server, port, settings, client_id, client_secret
+    global server, port, client_id, client_secret
     global token, actual_token, nickname, channel, broadcaster_id
 
     server = 'irc.chat.twitch.tv'
     port = 6697
 
-    settings = process_settings("settings.json")
-    logging.info(f"Settings: {settings}")
-
-    client_id = settings.get("Twitch_Client_ID")
-    client_secret = settings.get("Twitch_Client_Secret")
-    token = settings.get("Twitch_Token")
+    client_id = settings_data.get("Twitch_Client_ID")
+    client_secret = settings_data.get("Twitch_Client_Secret")
+    token = settings_data.get("Twitch_Token")
     actual_token = token.split("oauth:")[-1] if token else ""
-    nickname = settings.get("Twitch_Name")
+    nickname = settings_data.get("Twitch_Name")
     channel = f"#{nickname.lower()}" if nickname else ""
 
     if not token or not client_id or not client_secret or not nickname:

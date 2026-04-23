@@ -2,69 +2,60 @@ import websockets
 import logging
 import json
 import asyncio
-import time
 
 from config import load_settings
 
 OBS_Bobble_image = load_settings("settings.json")["OBS_Bobble_image"]
-connected_clients = set()  # WebSocket clients set
+connected_clients = set()
 
-# Start WebSocket server to handle real-time messaging
+
 async def websocket_handler(websocket):
     connected_clients.add(websocket)
     try:
         logging.info("New client connected")
-
-        # Send image path
-        await websocket.send(json.dumps({
-            "imagePath": OBS_Bobble_image
-        }))
-
-        # Listen for messages (if needed)
+        await websocket.send(json.dumps({"imagePath": OBS_Bobble_image}))
         async for _ in websocket:
             pass
-
     finally:
-        connected_clients.remove(websocket)
+        connected_clients.discard(websocket)
         logging.info("Client disconnected")
 
 
-# Broadcast function to send messages (and optionally vote) to all clients
-async def broadcast_message(username, message, duration):
-    is_sub = False
+async def broadcast_message(username, message, duration, audio_b64=None, volume=1.0):
+    is_sub = any(
+        keyword in message.lower()
+        for keyword in ("thank you very much for the sub!", "thank you very much for the gifted sub")
+    )
 
-    sub_keywords = [
-        "thank you very much for the sub!",
-        "thank you very much for the gifted sub",
-    ]
+    if not connected_clients:
+        return
 
-    if any(keyword in message.lower() for keyword in sub_keywords):
-        is_sub = True
+    payload = {
+        "username": username.strip(),
+        "message": message.strip(),
+        "isSub": is_sub,
+        "duration": duration,
+        "volume": volume,
+    }
+    if audio_b64:
+        payload["audio"] = audio_b64
 
-    if connected_clients:
-        payload = {
-            "username": username.strip(),
-            "message": message.strip(),
-            "isSub": is_sub,
-            "duration": duration
-        }
+    message_data = json.dumps(payload)
+    logging.info(f"Broadcasting TTS: username={username!r}, message={message!r}")
 
-        message_data = json.dumps(payload)
-        logging.info(f"Message payload: {message_data}")
-
-        await asyncio.gather(*(client.send(message_data) for client in connected_clients))
-
+    await asyncio.gather(*(client.send(message_data) for client in list(connected_clients)))
 
 
-async def update_latest_message(username, message, duration):
+async def update_latest_message(username, message, duration, audio_b64=None, volume=1.0):
     logging.info("Sending latest message to WebSocket clients...")
     try:
-        await broadcast_message(username, message, duration)
+        await broadcast_message(username, message, duration, audio_b64, volume)
     except Exception as e:
         logging.error(f"Failed to send latest message: {e}")
 
 
 async def start_websocket_server():
-    async with websockets.serve(websocket_handler, "localhost", 8080):
-        logging.info("WebSocket server started on ws://localhost:8080")
-        await asyncio.Future()  # Run forever
+    port = load_settings("settings.json").get("OBS_Websocket_Port", 8080)
+    async with websockets.serve(websocket_handler, "0.0.0.0", port):
+        logging.info(f"WebSocket server started on ws://0.0.0.0:{port}")
+        await asyncio.Future()
