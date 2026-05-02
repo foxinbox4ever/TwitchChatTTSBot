@@ -130,7 +130,7 @@ class Viewer:
         logging.info(f"Moderator API response: {response.status_code} - {response.text}")
 
         if response.status_code == 401:
-            logging.error("Unauthorized access. Missing scope: moderator:read:chatters")
+            logging.error("Unauthorized access. Missing scope: moderation:read")
             return False
 
         elif response.status_code == 200:

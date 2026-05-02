@@ -12,7 +12,7 @@ from Commands import COMMANDS, VoteCommand
 from SoundEffect import play_sound_from_file
 from config import settings_data, sound_effects, enable_sound_effects
 from Viewers import viewers, new_viewer_wrapper, remove_viewer, get_broadcaster_id
-from Autherisation_URL import autherise
+from Autherisation_URL import autherise, refresh_token_if_available
 
 logging.basicConfig(level=logging.INFO)
 shutdown_event = threading.Event()
@@ -246,7 +246,10 @@ class IRCBot:
         self.connection = None
 
     def connect(self):
-        factory = irc.connection.Factory(wrapper=ssl.wrap_socket)
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        factory = irc.connection.Factory(wrapper=ssl_context.wrap_socket)
         try:
             logging.info("Connecting to chat...")
             token = self.token
@@ -288,6 +291,22 @@ class IRCBot:
                 self.connection.close()
             logging.info("Bot disconnected.")
 
+def _token_refresh_loop():
+    # Refresh every 3 hours — Twitch tokens expire in ~4 hours
+    while not shutdown_event.wait(timeout=3 * 60 * 60):
+        logging.info("Proactively refreshing Twitch token...")
+        new_token = refresh_token_if_available(client_id, client_secret)
+        if new_token:
+            global token, actual_token
+            token = new_token
+            actual_token = new_token.split("oauth:")[-1]
+            for v in list(viewers):
+                v.token = actual_token
+            logging.info("Token refreshed and propagated to all viewers.")
+        else:
+            logging.warning("Proactive token refresh failed — will retry next cycle.")
+
+
 def run_Twitch_Bot():
     global server, port, client_id, client_secret
     global token, actual_token, nickname, channel, broadcaster_id
@@ -328,8 +347,15 @@ def run_Twitch_Bot():
 
     reconnect_bot()
 
+    threading.Thread(target=_token_refresh_loop, daemon=True).start()
+
     # Run until externally shut down
     while not shutdown_event.is_set():
         time.sleep(1)
 
     logging.info("Twitch bot shutting down...")
+    if bot and bot.connection:
+        try:
+            bot.connection.close()
+        except Exception:
+            pass

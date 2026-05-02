@@ -3,7 +3,7 @@ import time
 import logging
 import random
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import asyncio
 import json
 import re
@@ -152,17 +152,24 @@ class SubsCommand(BaseCommand):
                 "Authorization": f"Bearer {token}",
                 "Client-Id": client_id
             }
-            url = f"https://api.twitch.tv/helix/subscriptions?broadcaster_id={broadcaster_id}"
+            url = f"https://api.twitch.tv/helix/subscriptions?broadcaster_id={broadcaster_id}&first=100"
 
             try:
-                response = requests.get(url, headers=headers)
-                response.raise_for_status()
-                data = response.json()
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, headers=headers) as resp:
+                        data = await resp.json()
 
-                subscribers = [sub['user_name'] for sub in data['data']]
-                subscriber_list = ', '.join(subscribers) if subscribers else "No subscribers found."
-                response_msg = f"@{username}, here are the subscribers: {subscriber_list}"
-            except requests.exceptions.RequestException as e:
+                total = data.get("total", 0)
+                subscribers = [sub['user_name'] for sub in data.get('data', [])]
+                if not subscribers:
+                    response_msg = f"@{username}, no subscribers found."
+                else:
+                    sub_list = ', '.join(subscribers)
+                    prefix = f"@{username}, subscribers ({total} total): "
+                    if len(prefix) + len(sub_list) > 490:
+                        sub_list = sub_list[:490 - len(prefix) - 3] + "..."
+                    response_msg = prefix + sub_list
+            except Exception as e:
                 logging.error(f"Error fetching subscribers: {e}")
                 response_msg = "Failed to retrieve subscribers. Please try again later."
 
@@ -243,26 +250,20 @@ class UptimeCommand(BaseCommand):
             url = f"https://api.twitch.tv/helix/streams?user_id={broadcaster_id}"
 
             try:
-                response = requests.get(url, headers=headers)
-                response.raise_for_status()
-                data = response.json()
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, headers=headers) as resp:
+                        data = await resp.json()
 
                 if data['data']:
-                    # Extract stream start time
-                    stream_start = data['data'][0]['started_at']
-                    # Convert to datetime object
-                    stream_start = datetime.strptime(stream_start, '%Y-%m-%dT%H:%M:%SZ')
-                    # Calculate uptime
-                    current_time = datetime.utcnow()
-                    uptime = current_time - stream_start
-
-                    # Format uptime as hours, minutes, and seconds
+                    stream_start = datetime.strptime(data['data'][0]['started_at'], '%Y-%m-%dT%H:%M:%SZ')
+                    stream_start = stream_start.replace(tzinfo=timezone.utc)
+                    uptime = datetime.now(timezone.utc) - stream_start
                     formatted_uptime = str(timedelta(seconds=int(uptime.total_seconds())))
                     response_msg = f"@{username}, the stream has been live for {formatted_uptime}."
                 else:
                     response_msg = f"@{username}, the stream is currently offline."
 
-            except requests.exceptions.RequestException as e:
+            except Exception as e:
                 logging.error(f"Error fetching uptime: {e}")
                 response_msg = "Failed to retrieve uptime. Please try again later."
 
@@ -283,70 +284,48 @@ class DadJokeCommand(BaseCommand):
             joke_url = "https://v2.jokeapi.dev/joke/Programming?type=single&lang=en"
 
             try:
-                # Split message to check if there's an amount specified
                 message_parts = message.split(" ", 1)
                 joke = ""
 
-                if len(message_parts) > 1:
-                    # Get the number of jokes requested from the message
-                    joke_amount = int(message_parts[1])
+                async with aiohttp.ClientSession() as session:
+                    if len(message_parts) > 1:
+                        try:
+                            joke_amount = min(int(message_parts[1]), 3)
+                        except ValueError:
+                            connection.privmsg(channel, f"@{username}, usage: !dadjoke [number of jokes, max 3]")
+                            return
 
-                    # Ensure joke_amount doesn't exceed a reasonable maximum (e.g., 3)
-                    joke_amount = min(joke_amount, 3)
+                        async with session.get(f"{joke_url}&amount={joke_amount}") as resp:
+                            joke_data = await resp.json(content_type=None)
 
-                    # Add the amount parameter to the URL for multiple jokes
-                    url_with_amount = f"{joke_url}&amount={joke_amount}"
-
-                    # Fetch jokes from the API
-                    response = requests.get(url_with_amount)
-                    response.raise_for_status()
-                    joke_data = response.json()
-
-                    # Collect all jokes from the response
-                    if 'jokes' in joke_data:  # When multiple jokes are returned
-                        for joke_entry in joke_data['jokes']:
-                            if joke_entry['type'] == 'single':
-                                joke += joke_entry['joke'] + " "
-                            else:  # For 'twopart' jokes (setup and delivery)
-                                joke += f"{joke_entry['setup']} - {joke_entry['delivery']} "
-
-                    else:
-                        # If there's a problem, just return one joke from the original URL
-                        joke = "Sorry, couldn't fetch multiple jokes. Here's one: "
-                        joke_entry = joke_data
-                        if joke_entry['type'] == 'single':
-                            joke += joke_entry['joke']
+                        if 'jokes' in joke_data:
+                            for entry in joke_data['jokes']:
+                                if entry['type'] == 'single':
+                                    joke += entry['joke'] + " "
+                                else:
+                                    joke += f"{entry['setup']} - {entry['delivery']} "
                         else:
-                            joke += f"{joke_entry['setup']} - {joke_entry['delivery']}"
-
-                else:
-                    # If no joke amount is specified, fetch just one joke
-                    response = requests.get(joke_url)
-                    response.raise_for_status()
-                    joke_data = response.json()
-
-                    # Handle single joke response
-                    if joke_data['type'] == 'single':
-                        joke = joke_data['joke']
+                            joke = joke_data.get('joke') or f"{joke_data.get('setup')} - {joke_data.get('delivery')}"
                     else:
-                        joke = f"{joke_data['setup']} - {joke_data['delivery']}"
+                        async with session.get(joke_url) as resp:
+                            joke_data = await resp.json(content_type=None)
 
-                # Ensure no newline or carriage return characters in the joke
+                        if joke_data['type'] == 'single':
+                            joke = joke_data['joke']
+                        else:
+                            joke = f"{joke_data['setup']} - {joke_data['delivery']}"
+
                 joke = joke.replace('\n', ' ').replace('\r', ' ')
+                prefix = f"@{username}, here's your dad joke(s): "
+                if len(prefix) + len(joke) > 490:
+                    joke = joke[:490 - len(prefix) - 3] + "..."
 
-                # Check if joke message exceeds Twitch's character limit (500 characters)
-                if len(joke) > 500:
-                    joke = joke[:500]  # Truncate the joke to fit the 500-character limit
-
-                # Send the joke(s) to Twitch chat
-                response_msg = f"@{username}, here's your dad joke(s): {joke}"
-                connection.privmsg(channel, response_msg)
+                connection.privmsg(channel, prefix + joke)
                 logging.info(f"Executed {self.name} command for {username}")
 
-            except requests.exceptions.RequestException as e:
+            except Exception as e:
                 logging.error(f"Error fetching dad joke: {e}")
-                response_msg = "Sorry, I couldn't fetch a dad joke right now. Please try again later."
-                connection.privmsg(channel, response_msg)
+                connection.privmsg(channel, "Sorry, I couldn't fetch a dad joke right now. Please try again later.")
         else:
             self.on_cooldown(connection, username, channel)
 
@@ -399,7 +378,7 @@ class VoteCommand(BaseCommand):
         parts = message.split(" ", 1)
 
         # Only moderators can start a vote
-        if username not in [viewer.username for viewer in viewers if viewer.mod]:
+        if username.lower() not in [viewer.username for viewer in viewers if viewer.mod]:
             if self.__class__.vote_is_active and len(parts) > 1 and parts[1].isdigit():
                 await VoteCommand.handle_vote_response(connection, username, parts[1], channel)
             else:
@@ -443,7 +422,7 @@ class VoteCommand(BaseCommand):
                     await broadcast_message(username, "", 0)
                     await asyncio.sleep(0.1)
                     await asyncio.gather(*[
-                        client.send(json.dumps(vote_payload)) for client in connected_clients
+                        client.send(json.dumps(vote_payload)) for client in list(connected_clients)
                     ])
                     logging.info(f"Vote sent to browser source: {vote_payload}")
                     connection.privmsg(channel,
@@ -499,7 +478,7 @@ class VoteCommand(BaseCommand):
                     "voteCounts": vote_counts
                 }
                 await asyncio.gather(*[
-                    client.send(json.dumps(vote_payload)) for client in connected_clients
+                    client.send(json.dumps(vote_payload)) for client in list(connected_clients)
                 ])
                 logging.info(f"Vote response sent to browser source: {vote_payload}")
 
@@ -599,7 +578,7 @@ class SanityCommand(BaseCommand):
                         "value": avg_sanity
                     }
                     await asyncio.gather(*[
-                        client.send(json.dumps(sanity_payload)) for client in connected_clients
+                        client.send(json.dumps(sanity_payload)) for client in list(connected_clients)
                     ])
                     logging.info(f"Updated sanity sent to OBS: {sanity_payload}")
 
