@@ -84,7 +84,7 @@
     }
 
     function connectWebSocket() {
-        ws = new WebSocket("ws://localhost:8080/");
+        ws = new WebSocket("ws://192.168.0.24:8765/");
 
         ws.onopen = () => {
             console.log("WebSocket connected.");

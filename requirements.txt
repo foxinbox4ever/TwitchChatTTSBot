@@ -5,3 +5,4 @@ irc==20.5.0                    # IRC client for Twitch chat
 aiohttp==3.11.18                 # Async HTTP requests (used in commands or APIs)
 google-api-python-client==2.173.0  # YouTube API support (Google API Client)
 requests==2.32.3             # HTTP requests (used for JokeAPI or Twitch)
+edge-tts>=6.0.0              # Microsoft Edge TTS engine for voice synthesis

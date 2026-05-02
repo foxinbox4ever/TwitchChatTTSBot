@@ -21,7 +21,7 @@ TTS_Voice = _voice_setting if isinstance(_voice_setting, str) else "en-GB-SoniaN
 
 AVAILABLE_VOICES = [
     # US
-    "en-US-AriaNeural", "en-US-JennyNeural", "en-US-MichelleNeural",
+    "en-US-AriaNeural", "en-US-AnaNeural", "en-US-JennyNeural", "en-US-MichelleNeural",
     "en-US-MonicaNeural", "en-US-EmmaNeural", "en-US-GuyNeural",
     "en-US-ChristopherNeural", "en-US-EricNeural", "en-US-RogerNeural",
     "en-US-SteffanNeural", "en-US-AndrewNeural", "en-US-BrianNeural",
@@ -53,6 +53,12 @@ AVAILABLE_VOICES = [
     "en-PH-JamesNeural", "en-PH-RosaNeural",
     # HK
     "en-HK-SamNeural", "en-HK-YanNeural",
+    # KE
+    "en-KE-AsiliaNeural", "en-KE-ChilembaNeural",
+    # NG
+    "en-NG-AbeoNeural", "en-NG-EzinneNeural",
+    # TZ
+    "en-TZ-ElimuNeural", "en-TZ-ImaniNeural",
 ]
 
 _user_voices: dict[str, str] = {}
@@ -76,18 +82,25 @@ def user_allowed_tts(username):
 
 def _get_voice_for_user(username: str) -> str:
     key = username.lower()
-    if key not in _user_voices:
-        _user_voices[key] = random.choice(AVAILABLE_VOICES)
-        logging.info(f"Assigned voice {_user_voices[key]} to {username}")
+    if key in _user_voices:
+        return _user_voices[key]
+
+    candidate_voices = [v for v in AVAILABLE_VOICES if v != TTS_Voice]
+    taken = set(_user_voices.values())
+    available = [v for v in candidate_voices if v not in taken]
+    pool = available if available else candidate_voices
+
+    _user_voices[key] = random.choice(pool)
+    logging.info(f"Assigned voice {_user_voices[key]} to {username}")
     return _user_voices[key]
 
 
 async def _generate_audio(text, username: str = "TTSystem"):
-    if TTS_Random_Voice:
+    if TTS_Random_Voice and username != "TTSystem":
         assigned = _get_voice_for_user(username)
         voices_to_try = [assigned] + [v for v in random.sample(AVAILABLE_VOICES, 2) if v != assigned]
     else:
-        voices_to_try = [TTS_Voice] + random.sample(AVAILABLE_VOICES, 2)
+        voices_to_try = [TTS_Voice]
 
     last_error = None
     for voice in voices_to_try:
