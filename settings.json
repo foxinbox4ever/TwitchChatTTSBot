@@ -20,6 +20,7 @@
     "sound_effects_cooldown": 5,
     "OBS_Browser_Source": true,
     "OBS_Bobble_image": "dwightHead.png",
+    "OBS_Websocket_Port": 8765,
     "Sanity_Bar": true,
     "Discord_Link": "https://discord.gg/UM3rmnf9zV",
     "Twitter_Link": "https://x.com/foxinboxTTV",
