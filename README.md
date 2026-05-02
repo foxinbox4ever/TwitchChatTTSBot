@@ -8,8 +8,7 @@ Made by foxinbox — [Twitch](https://www.twitch.tv/foxinbox4ever)
 ### Requirements
 
 - Python 3.10+
-- Install dependencies: `pip install -r requirements.txt`
-- Also install the TTS engine: `pip install edge-tts`
+- Install dependencies: `pip install -r requirements.txt` (includes `edge-tts`)
 
 The bot can run on a **remote server (e.g. Ubuntu)** with the OBS browser source on your local Windows PC. See the OBS setup section below.
 
@@ -26,6 +25,7 @@ The bot can run on a **remote server (e.g. Ubuntu)** with the OBS browser source
   - Put your Twitch channel name in `settings.json`
 - Run `Bot.py`
 - The first time you run it, your browser will open and ask you to authenticate. Make sure you're logged in on the same account used to create the bot in the Twitch dev portal.
+- After authenticating, the bot will automatically refresh your OAuth token every 3 hours so it can run indefinitely without needing a restart.
 
 ---
 
@@ -93,8 +93,8 @@ If you have new command ideas, join the Discord and message there: [Discord](htt
 | `YouTube_Channel_ID` | string | Your YouTube channel ID |
 | `TTS_Access` | `all`/`followers`/`subs`/`off` | Who is allowed to use TTS |
 | `TTS_Shout_Volume` | `0.0`–`1.0` | Volume for the `!shout` command |
-| `TTS_Random_Voice` | `true`/`false` | Assigns each user a random voice that stays consistent for them throughout the session |
-| `TTS_Voice` | string | Voice name used when `TTS_Random_Voice` is `false` (e.g. `"en-GB-SoniaNeural"`) — run `edge-tts --list-voices` to see all options |
+| `TTS_Random_Voice` | `true`/`false` | Assigns each viewer a unique random voice that stays consistent for them throughout the session — no two viewers share the same voice |
+| `TTS_Voice` | string | The system/bot voice, always used for bot announcements (e.g. sub/raid alerts). Also used for all TTS when `TTS_Random_Voice` is `false`. Run `edge-tts --list-voices` to see options (e.g. `"en-GB-SoniaNeural"`) |
 | `OBS_Websocket_Port` | number | Port the WebSocket server listens on (default `8080`) |
 | `OBS_Browser_Source` | `true`/`false` | Enables the OBS browser source and WebSocket TTS delivery |
 | `OBS_Bobble_image` | file path | Path to the bobble head image shown in the browser source |
