@@ -134,6 +134,62 @@ See the existing commands in `Commands.py` as examples.
 
 ---
 
+### Running on a remote server (e.g. Ubuntu VPS)
+
+The bot can run headlessly on a remote Linux server while your OBS stays on your local Windows PC. The TTS audio is streamed over WebSocket so no audio hardware is needed on the server.
+
+**On the server:**
+
+1. Install Python 3.10+ and dependencies:
+   ```bash
+   sudo apt install python3 python3-pip tmux -y
+   pip install -r requirements.txt
+   ```
+
+2. Fill in `settings.json` with your credentials and set:
+   ```json
+   "OBS_Browser_Source": true
+   ```
+
+3. Open port 8765 on the server firewall:
+   ```bash
+   sudo ufw allow 8765
+   ```
+
+4. Run the bot inside a tmux session so it keeps running after you disconnect:
+   ```bash
+   tmux new -s bot
+   python3 Bot.py
+   ```
+   Detach with `Ctrl+B` then `D`. Reattach later with `tmux attach -t bot`.
+
+5. The first run will print an OAuth URL — paste it into your browser on your local machine, authenticate, and the tokens will be saved automatically. The bot will then refresh them every 3 hours on its own.
+
+**On your local Windows PC (OBS):**
+
+1. Copy `tts_display.html` (and `sanity_bar.html` if using the sanity bar) to your PC.
+
+2. In OBS, add a Browser Source → tick **Local File** → point it to `tts_display.html`.
+
+3. Append the server's local IP and port as a query parameter:
+   ```
+   file:///C:/path/to/tts_display.html?host=<server-ip>:8765
+   ```
+   Replace `<server-ip>` with your server's LAN IP (e.g. `192.168.1.50`).
+
+4. In OBS Audio Mixer → Advanced Audio Settings, set the browser source to **Monitor and Output**.
+
+5. Tick **Refresh browser when scene becomes active**.
+
+**Capturing logs:**
+
+To save the bot's output for debugging after a session:
+```bash
+tmux capture-pane -p -S - > output.txt
+```
+
+---
+
 ### Known issues
 
 - The YouTube bot is experimental and not fully tested — keep `YouTube_Bot` set to `false`.

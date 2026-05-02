@@ -250,7 +250,7 @@
 
         function connectWebSocket() {
             const params = new URLSearchParams(window.location.search);
-            const wsHost = params.get('host') || '192.168.0.24:8765';
+            const wsHost = params.get('host') || 'localhost:8080';
             ws = new WebSocket(`ws://${wsHost}/`);
 
             ws.onopen = () => {
