@@ -1,0 +1,15 @@
+settings.json
+__pycache__/
+*.pyc
+.idea/
+.cache/
+venv/
+tts-env/
+logs/
+audio.wav
+data.json
+output.txt
+vector.index
+dad_jokes.csv
+healthygamer_gg_testdata.csv
+Spotify_Licensing_Check.xlsx
