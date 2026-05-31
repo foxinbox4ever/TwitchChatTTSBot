@@ -13,6 +13,9 @@ from Viewers import viewers
 settings = load_settings("settings.json")
 OBS_Browser_Source = settings.get("OBS_Browser_Source", False)
 TTS_Access = settings.get("TTS_Access", "all").lower()
+TTS_Access_Twitch = settings.get("TTS_Access_Twitch", TTS_Access).lower()
+TTS_Access_YouTube = settings.get("TTS_Access_YouTube", TTS_Access).lower()
+TTS_Access_TikTok = settings.get("TTS_Access_TikTok", TTS_Access).lower()
 TTS_Shout_Volume = float(settings.get("TTS_Shout_Volume", 1.0))
 TTS_Random_Voice = settings.get("TTS_Random_Voice", False)
 
@@ -68,15 +71,57 @@ SPAM_LINK_KEYWORDS = [
     "http", "www", "discord.gg", "free viewers",
 ]
 
+# Patterns that TTS would phonetically render as slurs.
+# Covers direct forms, leet/symbol substitutions, spaced-out letters,
+# and near-homophones (e.g. "nicker", "nigg her") that bypass spelling filters
+# but sound identical when spoken aloud.
+_TTS_SLUR_PATTERNS = [re.compile(p, re.IGNORECASE) for p in [
+    # n-word: direct, leet substitutions (i→1/!, g→9, a/e→3/4)
+    r"n[i1!|][g9q][g9q][e3a4]r",
+    # spaced / punctuated letters:  n . i . g . g . e . r  etc.
+    r"n[\s\W_]*i[\s\W_]*g[\s\W_]*g[\s\W_]*[ae][\s\W_]*r",
+    # phonetic near-homophones: "nicker", "nick er"
+    r"\bnick\s*er",
+    # split form: "nigg her", "nigg-her"
+    r"\bnigg[\s\-_]*h?er\b",
+    # f-slur and near-homophones
+    r"\bf[a4][g9][g9][io0]t",
+    r"\bf[\s\W_]*[a4][\s\W_]*g[\s\W_]*g[\s\W_]*[io0][\s\W_]*t",
+]]
 
-def user_allowed_tts(username):
-    viewer_info = next((v for v in viewers if v.username.lower() == username.lower()), None)
-    if TTS_Access == "off":
+
+def _platform_access(platform):
+    if platform == "YouTube":
+        return TTS_Access_YouTube
+    if platform == "TikTok":
+        return TTS_Access_TikTok
+    return TTS_Access_Twitch
+
+
+def user_allowed_tts(username, platform="Twitch"):
+    access = _platform_access(platform)
+
+    if access == "off":
         return False
-    if TTS_Access == "subs" and not (viewer_info and viewer_info.subscribed):
-        return False
-    if TTS_Access == "followers" and not (viewer_info and viewer_info.following):
-        return False
+    if access == "all":
+        return True
+
+    if platform == "Twitch":
+        viewer_info = next((v for v in viewers if v.username.lower() == username.lower()), None)
+        if viewer_info is None:
+            return True
+        if access == "subs" and not viewer_info.subscribed:
+            return False
+        if access == "followers" and not viewer_info.following:
+            return False
+
+    elif platform == "YouTube":
+        # "members" = YouTube channel members (isChatSponsor from the API)
+        if access == "members":
+            from Viewers import youtube_viewer_status
+            return youtube_viewer_status.get(username.lower(), {}).get("member", False)
+
+    # TikTok only supports "all" or "off" — anything else falls through to allowed
     return True
 
 
@@ -126,7 +171,7 @@ async def _generate_audio(text, username: str = "TTSystem"):
     raise RuntimeError(f"All voices failed. Last error: {last_error}")
 
 
-async def text_to_speech(message):
+async def text_to_speech(message, platform="Twitch"):
     try:
         logging.info("TTS activated for message")
 
@@ -137,8 +182,8 @@ async def text_to_speech(message):
             username_message = message.split(" says ", 1)
             username = username_message[0].strip()
 
-            if not user_allowed_tts(username):
-                logging.info(f"TTS skipped for {username}: Not allowed by TTS_Access setting.")
+            if not user_allowed_tts(username, platform):
+                logging.info(f"TTS skipped for {username}: Not allowed by TTS_Access_{platform} setting.")
                 return 0
         else:
             apply_spam_filter = False
@@ -153,6 +198,9 @@ async def text_to_speech(message):
                 return 0
             if re.search(r"(\b\w+\b(?:\s+\b\w+\b){0,4})\s+\1\s+\1", message.lower()):
                 logging.info(f"TTS skipped for {username}: repeated phrase spam")
+                return 0
+            if any(p.search(message) for p in _TTS_SLUR_PATTERNS):
+                logging.info(f"TTS skipped for {username}: matched slur/phonetic filter")
                 return 0
 
         if not OBS_Browser_Source:
@@ -173,14 +221,14 @@ async def text_to_speech(message):
         return 0
 
 
-async def text_to_shout(message):
+async def text_to_shout(message, platform="Twitch"):
     try:
         logging.info("TTS shout activated for message")
         username_message = message.split(" shouts ", 1)
         username = username_message[0].strip()
 
-        if not user_allowed_tts(username):
-            logging.info(f"TTS shout skipped for {username}: Not allowed by TTS_Access setting.")
+        if not user_allowed_tts(username, platform):
+            logging.info(f"TTS shout skipped for {username}: Not allowed by TTS_Access_{platform} setting.")
             return 0
 
         if not OBS_Browser_Source:

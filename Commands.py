@@ -15,7 +15,8 @@ from config import settings_data, get_social_links, OBS_Browser_Source, Sanity_B
 
 
 class BaseCommand:
-    user_cooldowns = {}  # Store cooldowns for each user per command
+    user_cooldowns = {}
+    platforms = ("Twitch", "YouTube", "TikTok")
 
     def __init__(self, name, cooldown=0, description="No description available"):
         self.name = name
@@ -23,44 +24,27 @@ class BaseCommand:
         self.description = description
 
     def can_execute(self, username):
-        """Check if the command can be executed based on per-user cooldown for that specific command."""
         current_time = time.time()
 
         if username not in BaseCommand.user_cooldowns:
             BaseCommand.user_cooldowns[username] = {}
 
-        # Retrieve the last used time for this command for the user
         last_used = BaseCommand.user_cooldowns[username].get(self.name, 0)
 
         if current_time - last_used >= self.cooldown:
-            # Update the cooldown time for the user and the current command
             BaseCommand.user_cooldowns[username][self.name] = current_time
             return True
 
         return False
 
-    def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
-        """Placeholder for execution logic. Should be overridden."""
+    def execute(self, send_reply, username, message, channel, token, client_id, broadcaster_id):
         raise NotImplementedError("Execute method not implemented.")
 
-    def on_cooldown(self, connection, username, channel):
-        """Handle the cooldown response."""
+    def on_cooldown(self, send_reply, username):
         current_time = time.time()
-
-        # Retrieve the last used time for the specific command for the user
-        user_cooldowns = BaseCommand.user_cooldowns.get(username, {})
-
-        # Get the last time the specific command was used by the user, default to 0 if not found
-        last_used = user_cooldowns.get(self.name, 0)
-
-        # Calculate the time left on the cooldown
-        time_left = self.cooldown - (current_time - last_used)
-
-        # If time_left is less than 0, it means the cooldown has expired, so set time_left to 0
-        time_left = max(time_left, 0)
-
-        response = f"@{username}, {self.name} command is on cooldown. Please wait {time_left:.1f} seconds."
-        connection.privmsg(channel, response)
+        last_used = BaseCommand.user_cooldowns.get(username, {}).get(self.name, 0)
+        time_left = max(self.cooldown - (current_time - last_used), 0)
+        send_reply(f"@{username}, {self.name} command is on cooldown. Please wait {time_left:.1f} seconds.")
         logging.info(f"{self.name} command is on cooldown for user {username}.")
 
 
@@ -68,86 +52,103 @@ class HelpCommand(BaseCommand):
     def __init__(self):
         super().__init__(name="!help", cooldown=5, description="Displays a list of available commands or details about a specific command.")
 
-    async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
+    async def execute(self, send_reply, username, message, channel, token, client_id, broadcaster_id):
         if self.can_execute(username):
-            # Check if the user has specified a command for help
+            platform = channel if channel in ("YouTube", "TikTok") else "Twitch"
+            platform_commands = {k: v for k, v in COMMANDS.items() if platform in v.platforms}
+
             message_parts = message.split()
             if len(message_parts) > 1:
-                # Command specified (e.g., !help !shout)
                 command_name = message_parts[1]
                 if not command_name.startswith("!"):
-                    command_name = "!" + command_name # Corrected the typo here
+                    command_name = "!" + command_name
 
-                command = COMMANDS.get(command_name)
+                command = platform_commands.get(command_name)
 
                 if command:
                     response = f"@{username}, the '{command_name}' command: {command.description}"
                 else:
                     response = f"@{username}, the command '{command_name}' does not exist."
             else:
-                # No command specified, list all commands
-                response = f"Hello @{username}, here are the available commands: {commands_list}"
+                cmd_list = ', '.join(platform_commands.keys())
+                response = f"Hello @{username}, here are the available commands: {cmd_list}"
 
-            connection.privmsg(channel, response)
+            send_reply(response)
             logging.info(f"Executed {self.name} command for {username}")
         else:
-            self.on_cooldown(connection, username, channel)
+            self.on_cooldown(send_reply, username)
 
 
 class ShoutCommand(BaseCommand):
     def __init__(self):
         super().__init__(name="!shout", cooldown=10, description="does TTS a little louder")
 
-    async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
+    async def execute(self, send_reply, username, message, channel, token, client_id, broadcaster_id):
         if self.can_execute(username):
+            platform = channel if channel in ("YouTube", "TikTok") else "Twitch"
             message = message.split("!shout", 1)[1].strip()
             tts_message = f"{username} shouts {message}"
-            await text_to_shout(tts_message)
+            await text_to_shout(tts_message, platform=platform)
             logging.info(f"Executed {self.name} command for {username}")
         else:
-            self.on_cooldown(connection, username, channel)
+            self.on_cooldown(send_reply, username)
+
 
 class RaffleCommand(BaseCommand):
     def __init__(self):
         super().__init__(name="!raffle", cooldown=5, description="picks a random viewer in the chat")
 
-    async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
+    async def execute(self, send_reply, username, message, channel, token, client_id, broadcaster_id):
         if self.can_execute(username):
             raffle_message = message.split("!raffle", 1)
-            if len(raffle_message) > 1 and "followers" in raffle_message[1].strip().lower():
+            filter_type = raffle_message[1].strip().lower() if len(raffle_message) > 1 else ""
+
+            if channel == "YouTube":
+                from Viewers import youtube_viewers
+                eligible_viewers = [v for v in youtube_viewers if v != username.lower()]
+            elif channel == "TikTok":
+                from Viewers import tiktok_viewers
+                eligible_viewers = [v for v in tiktok_viewers if v != username.lower()]
+            elif "followers" in filter_type:
                 eligible_viewers = [viewer.username for viewer in viewers if viewer.following and viewer.username != username]
-            elif len(raffle_message) > 1 and "subs" in raffle_message[1].strip().lower():
+            elif "subs" in filter_type:
                 eligible_viewers = [viewer.username for viewer in viewers if viewer.subscribed and viewer.username != username]
             else:
                 eligible_viewers = [viewer.username for viewer in viewers if viewer.username != username]
 
             chosen_viewer = random.choice(eligible_viewers) if eligible_viewers else "no eligible viewers"
-            response = f"Hello @{username}, the winner of your raffle is: @{chosen_viewer}"
-            connection.privmsg(channel, response)
+            send_reply(f"Hello @{username}, the winner of your raffle is: @{chosen_viewer}")
             logging.info(f"Executed {self.name} command for {username}")
         else:
-            self.on_cooldown(connection, username, channel)
+            self.on_cooldown(send_reply, username)
+
 
 class LurkCommand(BaseCommand):
     def __init__(self):
         super().__init__(name="!lurk", cooldown=10, description="notifies the streamer your lurking")
 
-    async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
+    async def execute(self, send_reply, username, message, channel, token, client_id, broadcaster_id):
         if self.can_execute(username):
             tts_message = f"{username} is watching you!"
             await text_to_speech(tts_message)
-            response = f"Enjoy lurking @{username}"
-            connection.privmsg(channel, response)
+            send_reply(f"Enjoy lurking @{username}")
             logging.info(f"Executed {self.name} command for {username}")
         else:
-            self.on_cooldown(connection, username, channel)
+            self.on_cooldown(send_reply, username)
+
 
 class SubsCommand(BaseCommand):
+    platforms = ("Twitch",)
+
     def __init__(self):
         super().__init__(name="!subs", cooldown=10, description="displays all the subs of the channel")
 
-    async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
+    async def execute(self, send_reply, username, message, channel, token, client_id, broadcaster_id):
         if self.can_execute(username):
+            if channel in ("YouTube", "TikTok"):
+                send_reply(f"@{username}, !subs is only available on Twitch.")
+                return
+
             headers = {
                 "Authorization": f"Bearer {token}",
                 "Client-Id": client_id
@@ -173,17 +174,17 @@ class SubsCommand(BaseCommand):
                 logging.error(f"Error fetching subscribers: {e}")
                 response_msg = "Failed to retrieve subscribers. Please try again later."
 
-            connection.privmsg(channel, response_msg)
+            send_reply(response_msg)
             logging.info(f"Executed {self.name} command for {username}")
         else:
-            self.on_cooldown(connection, username, channel)
+            self.on_cooldown(send_reply, username)
 
 
 class DiscordCommand(BaseCommand):
     def __init__(self):
         super().__init__(name="!discord", cooldown=10, description="provides a discord link")
 
-    async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
+    async def execute(self, send_reply, username, message, channel, token, client_id, broadcaster_id):
         if self.can_execute(username):
             social_links = get_social_links()
             discord_link = next((value for key, value in social_links.items() if key.lower() == "discord"), None)
@@ -193,56 +194,57 @@ class DiscordCommand(BaseCommand):
             else:
                 response = f"@{username}, join the Discord here: {discord_link}"
 
-            connection.privmsg(channel, response)
+            send_reply(response)
             logging.info(f"Executed {self.name} command for {username}")
         else:
-            self.on_cooldown(connection, username, channel)
+            self.on_cooldown(send_reply, username)
 
 
 class HugCommand(BaseCommand):
     def __init__(self):
         super().__init__(name="!hug", cooldown=10, description="hugs the provided user or everyone. To hug a specific user type !hug username (the username of the person you want to hug)")
 
-    async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
+    async def execute(self, send_reply, username, message, channel, token, client_id, broadcaster_id):
         if self.can_execute(username):
-            # Make sure to split by " " and ignore the command part (!hug)
             parts = message.split(" ", 1)
             if len(parts) > 1:
-                # If there's a name after the command, use that name
                 target_user = parts[1].strip()
                 if "@" in target_user:
                     target_user = target_user.strip("@")
-
                 response = f"@{username} hugs @{target_user}"
             else:
-                # If no name is provided, send a default message
                 response = f"@{username} hugs everyone in the chat!"
-            connection.privmsg(channel, response)
+            send_reply(response)
             logging.info(f"Executed {self.name} command for {username}")
         else:
-            self.on_cooldown(connection, username, channel)
+            self.on_cooldown(send_reply, username)
 
 
 class BrainCellsCommand(BaseCommand):
     def __init__(self):
         super().__init__(name="!braincells", cooldown=10, description="tells you how many braincells you have")
 
-    async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
+    async def execute(self, send_reply, username, message, channel, token, client_id, broadcaster_id):
         if self.can_execute(username):
             braincells = random.randint(0, 100)
-            response = f"@{username} has {braincells} braincells"
-            connection.privmsg(channel, response)
+            send_reply(f"@{username} has {braincells} braincells")
             logging.info(f"Executed {self.name} command for {username}")
         else:
-            self.on_cooldown(connection, username, channel)
+            self.on_cooldown(send_reply, username)
 
 
 class UptimeCommand(BaseCommand):
+    platforms = ("Twitch",)
+
     def __init__(self):
         super().__init__(name="!uptime", cooldown=5, description="displays how long I have been streaming")
 
-    async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
+    async def execute(self, send_reply, username, message, channel, token, client_id, broadcaster_id):
         if self.can_execute(username):
+            if channel in ("YouTube", "TikTok"):
+                send_reply(f"@{username}, !uptime is only available on Twitch.")
+                return
+
             headers = {
                 "Authorization": f"Bearer {token}",
                 "Client-Id": client_id
@@ -267,20 +269,18 @@ class UptimeCommand(BaseCommand):
                 logging.error(f"Error fetching uptime: {e}")
                 response_msg = "Failed to retrieve uptime. Please try again later."
 
-            # Send the uptime message to Twitch chat
-            connection.privmsg(channel, response_msg)
+            send_reply(response_msg)
             logging.info(f"Executed {self.name} command for {username}")
         else:
-            self.on_cooldown(connection, username, channel)
+            self.on_cooldown(send_reply, username)
 
 
 class DadJokeCommand(BaseCommand):
     def __init__(self):
         super().__init__(name="!dadjoke", cooldown=100, description="tells you one or more dad jokes.")
 
-    async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
+    async def execute(self, send_reply, username, message, channel, token, client_id, broadcaster_id):
         if self.can_execute(username):
-            # Base URL for JokeAPI, which returns either single or multiple jokes
             joke_url = "https://v2.jokeapi.dev/joke/Programming?type=single&lang=en"
 
             try:
@@ -292,7 +292,7 @@ class DadJokeCommand(BaseCommand):
                         try:
                             joke_amount = min(int(message_parts[1]), 3)
                         except ValueError:
-                            connection.privmsg(channel, f"@{username}, usage: !dadjoke [number of jokes, max 3]")
+                            send_reply(f"@{username}, usage: !dadjoke [number of jokes, max 3]")
                             return
 
                         async with session.get(f"{joke_url}&amount={joke_amount}") as resp:
@@ -320,37 +320,36 @@ class DadJokeCommand(BaseCommand):
                 if len(prefix) + len(joke) > 490:
                     joke = joke[:490 - len(prefix) - 3] + "..."
 
-                connection.privmsg(channel, prefix + joke)
+                send_reply(prefix + joke)
                 logging.info(f"Executed {self.name} command for {username}")
 
             except Exception as e:
                 logging.error(f"Error fetching dad joke: {e}")
-                connection.privmsg(channel, "Sorry, I couldn't fetch a dad joke right now. Please try again later.")
+                send_reply("Sorry, I couldn't fetch a dad joke right now. Please try again later.")
         else:
-            self.on_cooldown(connection, username, channel)
+            self.on_cooldown(send_reply, username)
 
 
 class SocialsCommand(BaseCommand):
     def __init__(self):
         super().__init__(name="!socials", cooldown=10, description="provides a link to all my socials")
 
-    async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
+    async def execute(self, send_reply, username, message, channel, token, client_id, broadcaster_id):
         if self.can_execute(username):
             social_links = get_social_links()
 
             if not social_links:
                 response = f"@{username}, no social links have been provided."
             else:
-                # Create a string of "Name: URL" entries
                 link_display = " | ".join(
                     f"{name.capitalize()}: {url}" for name, url in social_links.items()
                 )
                 response = f"@{username}, here are all my socials: {link_display}"
 
-            connection.privmsg(channel, response)
+            send_reply(response)
             logging.info(f"Executed {self.name} command for {username}")
         else:
-            self.on_cooldown(connection, username, channel)
+            self.on_cooldown(send_reply, username)
 
 
 from TTSObsWebsocket import broadcast_message, connected_clients
@@ -365,24 +364,35 @@ class VoteCommand(BaseCommand):
         super().__init__(name="!vote", cooldown=5,
                          description="Allows you to start a vote if you're a mod")
 
-    async def execute(self, connection, username, message, channel, token, client_id, broadcaster_id):
+    @staticmethod
+    def _is_mod(username, channel):
+        if channel not in ("YouTube", "TikTok"):
+            return username.lower() in [v.username for v in viewers if v.mod]
+        streamer = settings_data.get("Twitch_Name", "").strip().lower()
+        if username.lower() == streamer:
+            return True
+        if channel == "YouTube":
+            from Viewers import youtube_viewer_status
+            return youtube_viewer_status.get(username.lower(), {}).get("moderator", False)
+        return False
+
+    async def execute(self, send_reply, username, message, channel, token, client_id, broadcaster_id):
         if not self.can_execute(username):
-            self.on_cooldown(connection, username, channel)
+            self.on_cooldown(send_reply, username)
             return
 
         if self.__class__.vote_is_active:
-            connection.privmsg(channel, "⚠️ A vote is already active!")
+            send_reply("⚠️ A vote is already active!")
             return
 
         logging.info(f"Executing {self.name} command for {username}")
         parts = message.split(" ", 1)
 
-        # Only moderators can start a vote
-        if username.lower() not in [viewer.username for viewer in viewers if viewer.mod]:
-            if self.__class__.vote_is_active and len(parts) > 1 and parts[1].isdigit():
-                await VoteCommand.handle_vote_response(connection, username, parts[1], channel)
-            else:
-                connection.privmsg(channel, f"@{username}, only moderators can start a vote!")
+        # Mod check on all platforms.
+        # Twitch: check the viewers mod list.
+        # YouTube/TikTok: no mod API — treat the streamer's name (Twitch_Name) as the only mod.
+        if not self._is_mod(username, channel):
+            send_reply(f"@{username}, only moderators can start a vote!")
             return
 
         if len(parts) > 1 and "?" in parts[1]:
@@ -393,7 +403,7 @@ class VoteCommand(BaseCommand):
                 options = [opt.strip() for opt in options if opt.strip()]
 
                 if len(options) < 2:
-                    connection.privmsg(channel, "You must provide at least 2 options.")
+                    send_reply("You must provide at least 2 options.")
                     return
 
                 logging.info(
@@ -425,29 +435,41 @@ class VoteCommand(BaseCommand):
                         client.send(json.dumps(vote_payload)) for client in list(connected_clients)
                     ])
                     logging.info(f"Vote sent to browser source: {vote_payload}")
-                    connection.privmsg(channel,
-                                       f"@{username} started a vote: {question.strip()}?")
-                    connection.privmsg(channel, "Type the number of your choice to vote!")
-                else:
+                    send_reply(f"@{username} started a vote: {question.strip()}?")
+                    send_reply("Type the number of your choice to vote!")
+                elif channel not in ("YouTube", "TikTok"):
+                    # Twitch native poll fallback (YouTube/TikTok don't support this)
                     logging.info("OBS web browser source is offline, creating Twitch poll instead.")
                     success, result = await create_twitch_poll(token, client_id, broadcaster_id, question, options)
                     if success:
-                        connection.privmsg(channel, f"📊 A Twitch poll has been started! Vote using the poll above!")
+                        send_reply(f"📊 A Twitch poll has been started! Vote using the poll above!")
                     else:
-                        connection.privmsg(channel, f"⚠️ Failed to create Twitch poll: {result}")
+                        send_reply(f"⚠️ Failed to create Twitch poll: {result}")
                         options_text = " | ".join([f"{i + 1}. {opt}" for i, opt in enumerate(options)])
-                        connection.privmsg(channel,
-                                           f"@{username} started a vote: {question.strip()}? Options: {options_text}")
-                        connection.privmsg(channel, "Type the number of your choice to vote!")
+                        send_reply(f"@{username} started a vote: {question.strip()}? Options: {options_text}")
+                        send_reply("Type the number of your choice to vote!")
+                else:
+                    # YouTube/TikTok with no OBS: run an in-chat vote
+                    self.__class__.active_vote = {
+                        "question": question.strip() + "?",
+                        "options": options,
+                        "started_by": username
+                    }
+                    self.__class__.vote_end_time = time.time() + 60
+                    self.__class__.vote_responses = {}
+                    self.__class__.vote_is_active = True
+                    options_text = " | ".join([f"{i + 1}. {opt}" for i, opt in enumerate(options)])
+                    send_reply(f"@{username} started a vote: {question.strip()}? Options: {options_text}")
+                    send_reply("Type the number of your choice to vote!")
 
             except Exception as e:
                 logging.error(f"Error while processing vote command: {e}")
-                connection.privmsg(channel, "⚠️ Error starting vote.")
+                send_reply("⚠️ Error starting vote.")
         else:
-            connection.privmsg(channel, f"@{username}, please use the correct format: !vote Question? 1.OptionOne 2.OptionTwo [3.OptionThree ...]")
+            send_reply(f"@{username}, please use the correct format: !vote Question? 1.OptionOne 2.OptionTwo [3.OptionThree ...]")
 
     @classmethod
-    async def handle_vote_response(cls, connection, username, message, channel):
+    async def handle_vote_response(cls, username, message):
         logging.info(f"Handling vote response from {username}")
 
         if not cls.active_vote or time.time() >= cls.vote_end_time:
@@ -483,7 +505,7 @@ class VoteCommand(BaseCommand):
                 logging.info(f"Vote response sent to browser source: {vote_payload}")
 
     @classmethod
-    async def handle_end_of_vote(cls, connection, channel):
+    async def handle_end_of_vote(cls, send_reply):
         if cls.vote_end_time and time.time() >= cls.vote_end_time:
             logging.info("Handling end of vote.")
             cls.vote_is_active = False
@@ -498,9 +520,8 @@ class VoteCommand(BaseCommand):
                     count = results.get(i + 1, 0)
                     result_lines.append(f"{i + 1}. {option}: {count} votes")
 
-                result_message = f"🗳️ Final vote results for '{cls.active_vote['question']}': " + " | ".join(
-                    result_lines)
-                connection.privmsg(channel, result_message)
+                result_message = f"🗳️ Final vote results for '{cls.active_vote['question']}': " + " | ".join(result_lines)
+                send_reply(result_message)
                 logging.info("Vote ended and results sent to chat.")
 
             cls.active_vote = None
@@ -508,9 +529,6 @@ class VoteCommand(BaseCommand):
             cls.vote_end_time = None
 
 async def create_twitch_poll(token, client_id, broadcaster_id, question, options, duration=60):
-    """
-    Creates a Twitch poll using the Helix API.
-    """
     headers = {
         "Authorization": f"Bearer {token}",
         "Client-ID": client_id,
@@ -520,7 +538,7 @@ async def create_twitch_poll(token, client_id, broadcaster_id, question, options
     payload = {
         "broadcaster_id": broadcaster_id,
         "title": question.strip()[:60],
-        "choices": [{"title": opt[:25]} for opt in options[:5]],  # Max 5 options
+        "choices": [{"title": opt[:25]} for opt in options[:5]],
         "duration": duration
     }
 
@@ -539,6 +557,7 @@ async def create_twitch_poll(token, client_id, broadcaster_id, question, options
         logging.error(f"Exception during Twitch poll creation: {e}")
         return False, str(e)
 
+
 class SanityCommand(BaseCommand):
     Current_Sanity = 100
     sanity_responses = {}
@@ -546,23 +565,21 @@ class SanityCommand(BaseCommand):
     def __init__(self):
         super().__init__(name="!sanity", cooldown=2, description="Vote on the streamer's current sanity level (1–100)")
 
-    async def execute(self, connection, username, message, channel, *args):
+    async def execute(self, send_reply, username, message, channel, *args):
         if not self.can_execute(username):
-            self.on_cooldown(connection, username, channel)
+            self.on_cooldown(send_reply, username)
             return
         try:
             parts = message.strip().split()
             if len(parts) > 1:
                 value = int(parts[1])
                 if not (1 <= value <= 100):
-                    connection.privmsg(channel, f"@{username}, please enter a number between 1 and 100.")
+                    send_reply(f"@{username}, please enter a number between 1 and 100.")
                     return
 
-                # Store or update the user's vote
                 self.__class__.sanity_responses[username] = value
                 logging.info(f"Sanity vote by {username}: {value}")
 
-                # Calculate new average sanity
                 total = sum(self.sanity_responses.values())
                 count = len(self.sanity_responses)
                 if count == 0:
@@ -571,7 +588,6 @@ class SanityCommand(BaseCommand):
                 avg_sanity = round(total / count)
                 self.__class__.Current_Sanity = avg_sanity
 
-                # Send to OBS browser source via WebSocket (only if active)
                 if Sanity_Bar:
                     sanity_payload = {
                         "type": "sanity",
@@ -582,18 +598,15 @@ class SanityCommand(BaseCommand):
                     ])
                     logging.info(f"Updated sanity sent to OBS: {sanity_payload}")
 
-                # Confirm vote in chat
-                connection.privmsg(channel,
-                                   f"@{username} Your vote has been recorded. Current sanity: {avg_sanity}/100")
+                send_reply(f"@{username} Your vote has been recorded. Current sanity: {avg_sanity}/100")
 
             else:
-                # Just show current sanity
                 avg_sanity = self.__class__.Current_Sanity
-                connection.privmsg(channel,
-                                   f"@{username} Current sanity is {avg_sanity}/100 with {len(self.sanity_responses)} vote(s).")
+                send_reply(f"@{username} Current sanity is {avg_sanity}/100 with {len(self.sanity_responses)} vote(s).")
 
         except ValueError:
-            connection.privmsg(channel, f"@{username}, please provide a number like `!sanity 85`.")
+            send_reply(f"@{username}, please provide a number like `!sanity 85`.")
+
 
 class ShoutOutCommand(BaseCommand):
     def __init__(self):
@@ -603,19 +616,17 @@ class ShoutOutCommand(BaseCommand):
             description="Give a streamer you like or raided with a shout out."
         )
 
-    async def execute(self, connection, username, message, channel, *args):
+    async def execute(self, send_reply, username, message, channel, *args):
         if not self.can_execute(username):
-            self.on_cooldown(connection, username, channel)
+            self.on_cooldown(send_reply, username)
             return
 
         parts = message.split()
 
-        # Check if a username was provided
         if len(parts) < 2:
-            connection.privmsg(channel, f"@{username}, please provide a username")
+            send_reply(f"@{username}, please provide a username")
             return
 
-        # Get username and remove @ if included
         shoutout_user = parts[1].lstrip("@").lower()
 
         response = (
@@ -624,10 +635,9 @@ class ShoutOutCommand(BaseCommand):
         )
 
         logging.info(f"{username} is attempting to shoutout: {shoutout_user}")
+        send_reply(response)
 
-        connection.privmsg(channel, response)
 
-# This dictionary helps map command names to their respective classes
 COMMANDS = {
     "!help": HelpCommand(),
     "!shout": ShoutCommand(),
@@ -644,5 +654,3 @@ COMMANDS = {
     "!sanity": SanityCommand(),
     "!so": ShoutOutCommand()
 }
-
-commands_list = ', '.join(COMMANDS.keys())

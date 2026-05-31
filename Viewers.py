@@ -5,6 +5,50 @@ import requests
 viewers = []
 _viewers_lock = threading.Lock()
 
+youtube_viewers = []
+youtube_viewer_status = {}  # username_lower -> {"member": bool, "moderator": bool}
+_youtube_viewers_lock = threading.Lock()
+
+
+def add_youtube_viewer(username, is_member=False, is_moderator=False):
+    username_lower = username.strip().lower()
+    with _youtube_viewers_lock:
+        if username_lower not in youtube_viewers:
+            youtube_viewers.append(username_lower)
+            logging.info(f"Added YouTube viewer: {username_lower}")
+        youtube_viewer_status[username_lower] = {
+            "member": is_member,
+            "moderator": is_moderator,
+        }
+
+
+def remove_youtube_viewer(username):
+    username_lower = username.strip().lower()
+    with _youtube_viewers_lock:
+        if username_lower in youtube_viewers:
+            youtube_viewers.remove(username_lower)
+            logging.info(f"Removed YouTube viewer: {username_lower}")
+
+
+tiktok_viewers = []
+_tiktok_viewers_lock = threading.Lock()
+
+
+def add_tiktok_viewer(username):
+    username_lower = username.strip().lower()
+    with _tiktok_viewers_lock:
+        if username_lower not in tiktok_viewers:
+            tiktok_viewers.append(username_lower)
+            logging.info(f"Added TikTok viewer: {username_lower}")
+
+
+def remove_tiktok_viewer(username):
+    username_lower = username.strip().lower()
+    with _tiktok_viewers_lock:
+        if username_lower in tiktok_viewers:
+            tiktok_viewers.remove(username_lower)
+            logging.info(f"Removed TikTok viewer: {username_lower}")
+
 class Viewer:
     def __init__(self, username, token, client_id, broadcaster_id):
         self.username = username.strip().lower()
