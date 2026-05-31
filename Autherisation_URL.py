@@ -214,9 +214,6 @@ YOUTUBE_OAUTH_SCOPES = [
     "https://www.googleapis.com/auth/youtube.upload",
     "https://www.googleapis.com/auth/youtubepartner",
     "https://www.googleapis.com/auth/youtube.channel-memberships.creator",
-    "https://www.googleapis.com/auth/youtube.manage",
-    "https://www.googleapis.com/auth/youtube.transaction",
-    "https://www.googleapis.com/auth/youtube.moderation",
 ]
 
 

@@ -7,12 +7,16 @@ logging.basicConfig(level=logging.INFO)
 _settings_loaded = False
 Twitch_Bot = True
 YouTube_Bot = False
+TikTok_Bot = False
 enable_sound_effects = False
 sound_effects = None
 sound_effects_cooldown = 0
 OBS_Browser_Source = False
 OBS_Bobble_image = "dwightHead.png"
 TTS_Access = "all"
+TTS_Access_Twitch = "all"
+TTS_Access_YouTube = "all"
+TTS_Access_TikTok = "all"
 TTS_Volume = 0.8
 TTS_Shout_Volume = 1.0
 TTS_Random_Voice = False
@@ -25,10 +29,11 @@ settings_data = {}
 
 def load_settings(settings_path):
     global _settings_loaded, settings_data
-    global Twitch_Bot, YouTube_Bot
+    global Twitch_Bot, YouTube_Bot, TikTok_Bot
     global sound_effects_cooldown, enable_sound_effects, sound_effects
     global OBS_Browser_Source, OBS_Bobble_image
-    global TTS_Access, TTS_Volume, TTS_Shout_Volume, TTS_Random_Voice, TTS_Voice
+    global TTS_Access, TTS_Access_Twitch, TTS_Access_YouTube, TTS_Access_TikTok
+    global TTS_Volume, TTS_Shout_Volume, TTS_Random_Voice, TTS_Voice
     global Sanity_Bar
 
     if _settings_loaded:
@@ -41,10 +46,14 @@ def load_settings(settings_path):
     # Load individual settings from settings_data
     Twitch_Bot = settings_data.get("Twitch_Bot", True)
     YouTube_Bot = settings_data.get("YouTube_Bot", settings_data.get("Youtube_Bot", False))
+    TikTok_Bot = settings_data.get("TikTok_Bot", False)
     sound_effects_cooldown = settings_data.get("sound_effects_cooldown", 0)
     OBS_Browser_Source = settings_data.get("OBS_Browser_Source", False)
     OBS_Bobble_image = settings_data.get("OBS_Bobble_image", "dwightHead.png")
     TTS_Access = settings_data.get("TTS_Access", "all").lower()
+    TTS_Access_Twitch = settings_data.get("TTS_Access_Twitch", TTS_Access).lower()
+    TTS_Access_YouTube = settings_data.get("TTS_Access_YouTube", TTS_Access).lower()
+    TTS_Access_TikTok = settings_data.get("TTS_Access_TikTok", TTS_Access).lower()
     Sanity_Bar = settings_data.get("Sanity_Bar", False)
 
     try:
@@ -85,6 +94,7 @@ def process_settings(settings_path):
         "OBS_Bobble_image": OBS_Bobble_image,
         "Twitch_Bot": Twitch_Bot,
         "YouTube_Bot": YouTube_Bot,
+        "TikTok_Bot": TikTok_Bot,
         "Twitch_Client_ID": settings.get("Twitch_Client_ID", ""),
         "Twitch_Client_Secret": settings.get("Twitch_Client_Secret", ""),
         "Twitch_Token": settings.get("Twitch_Token", ""),

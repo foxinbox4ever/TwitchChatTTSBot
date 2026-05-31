@@ -65,12 +65,15 @@ def handle_chat_message_wrapper(connection, username, message):
 
 async def handle_chat_message(connection, username, message):
     logging.info(f"Handling message from {username}: {message}")
+    send_reply = lambda msg: connection.privmsg(channel, msg)
     try:
         command_name = message.split(" ")[0].lower()
         command = COMMANDS.get(command_name)
 
         if command:
-            await command.execute(connection, username, message, channel, actual_token, client_id, broadcaster_id)
+            if "Twitch" not in command.platforms:
+                return
+            await command.execute(send_reply, username, message, channel, actual_token, client_id, broadcaster_id)
             return
 
         if message.lower() == "get out" and enable_sound_effects:
@@ -80,15 +83,15 @@ async def handle_chat_message(connection, username, message):
         if VoteCommand.vote_is_active:
             if message.strip().isdigit():
                 if time.time() < VoteCommand.vote_end_time:
-                    await VoteCommand.handle_vote_response(connection, username, message, channel)
+                    await VoteCommand.handle_vote_response(username, message)
                 else:
-                    await VoteCommand.handle_end_of_vote(connection, channel)
+                    await VoteCommand.handle_end_of_vote(send_reply)
                 return
 
         # TTS fallback
         if (username != "soundalerts"):
             tts_message = f"{username} says {message}"
-            await text_to_speech(tts_message)
+            await text_to_speech(tts_message, platform="Twitch")
 
     except Exception as e:
         logging.error(f"Error handling chat message: {e}")

@@ -1,3 +1,8 @@
+import subprocess
+import sys
+
+subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt", "-q"])
+
 import logging
 import threading
 import asyncio
@@ -5,6 +10,7 @@ import asyncio
 from TTSObsWebsocket import start_websocket_server
 from TwitchBot import run_Twitch_Bot, shutdown_event
 from YouTubeBot import run_YouTube_Bot
+from TikTokBot import run_TikTok_Bot
 from config import process_settings
 
 
@@ -24,6 +30,13 @@ def start_youtube_bot():
         shutdown_event.set()
 
 
+def start_tiktok_bot():
+    try:
+        run_TikTok_Bot()
+    except Exception as e:
+        logging.error(f"TikTok bot crashed: {e}")
+
+
 async def main():
     settings = process_settings("settings.json")
     logging.info(f"Settings: {settings}")
@@ -39,6 +52,11 @@ async def main():
         y = threading.Thread(target=start_youtube_bot, name="YouTubeBot", daemon=True)
         y.start()
         threads.append(y)
+
+    if settings.get("TikTok_Bot", False):
+        k = threading.Thread(target=start_tiktok_bot, name="TikTokBot", daemon=True)
+        k.start()
+        threads.append(k)
 
     websocket_task = None
     if settings.get("OBS_Browser_Source", False) or settings.get("Sanity_Bar", False):
