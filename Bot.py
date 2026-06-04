@@ -26,17 +26,17 @@ from platforms.TikTokBot import run_TikTok_Bot
 from core.config import process_settings
 
 
-def start_twitch_bot():
+def start_twitch_bot(loop):
     try:
-        run_Twitch_Bot()
+        run_Twitch_Bot(loop)
     except Exception as e:
         logging.error(f"Twitch bot crashed: {e}")
         shutdown_event.set()
 
 
-def start_youtube_bot():
+def start_youtube_bot(loop):
     try:
-        run_YouTube_Bot()
+        run_YouTube_Bot(loop)
     except Exception as e:
         logging.error(f"YouTube bot crashed: {e}")
         shutdown_event.set()
@@ -53,15 +53,16 @@ async def main():
     settings = process_settings("settings.json")
     logging.info(f"Settings: {settings}")
 
+    loop = asyncio.get_running_loop()
     threads = []
 
     if settings.get("Twitch_Bot", False):
-        t = threading.Thread(target=start_twitch_bot, name="TwitchBot", daemon=True)
+        t = threading.Thread(target=start_twitch_bot, args=(loop,), name="TwitchBot", daemon=True)
         t.start()
         threads.append(t)
 
     if settings.get("YouTube_Bot", False):
-        y = threading.Thread(target=start_youtube_bot, name="YouTubeBot", daemon=True)
+        y = threading.Thread(target=start_youtube_bot, args=(loop,), name="YouTubeBot", daemon=True)
         y.start()
         threads.append(y)
 

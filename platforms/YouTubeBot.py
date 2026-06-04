@@ -14,6 +14,7 @@ from core.Viewers import add_youtube_viewer
 from core.authorisation_url import authenticate_youtube
 
 shutdown_event = threading.Event()
+_loop = None
 live_chat_id = None
 youtube = None
 bot_channel_id = None  # The bot's own YouTube channel ID (to skip self-messages)
@@ -116,10 +117,12 @@ def poll_chat_messages():
 
 
 def handle_chat_message_wrapper(username, message):
-    try:
-        asyncio.run(handle_chat_message(username, message))
-    except Exception as e:
-        logging.error(f"Error in message handler: {e}")
+    future = asyncio.run_coroutine_threadsafe(
+        handle_chat_message(username, message), _loop
+    )
+    future.add_done_callback(
+        lambda f: logging.error(f"Error in message handler: {f.exception()}") if f.exception() else None
+    )
 
 
 async def handle_chat_message(username, message):
@@ -153,8 +156,9 @@ async def handle_chat_message(username, message):
         logging.error(f"Error processing message: {e}")
 
 
-def run_YouTube_Bot():
-    global youtube, live_chat_id, bot_channel_id
+def run_YouTube_Bot(loop):
+    global youtube, live_chat_id, bot_channel_id, _loop
+    _loop = loop
 
     channel_id = settings_data.get("YouTube_Channel_ID")
     client_id = settings_data.get("YouTube_Client_ID")

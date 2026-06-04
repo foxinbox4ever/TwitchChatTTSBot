@@ -11,11 +11,12 @@ from core.BotTTS import text_to_speech
 from core.Commands import COMMANDS, VoteCommand
 from core.SoundEffect import play_sound_from_file
 from core.config import settings_data, sound_effects, enable_sound_effects
-from core.Viewers import viewers, new_viewer_wrapper, remove_viewer, get_broadcaster_id
+from core.Viewers import viewers, enqueue_viewer, enqueue_status_update, remove_viewer, get_broadcaster_id
 from core.authorisation_url import autherise, refresh_token_if_available
 
 logging.basicConfig(level=logging.INFO)
 shutdown_event = threading.Event()
+_loop = None
 
 # Global bot and thread references
 bot = None
@@ -35,7 +36,7 @@ def on_join(connection, event):
     username = event.source.nick
     logging.info(f"{username} has joined {channel}")
     if username.lower() != nickname.lower() and username != "own3d":
-        threading.Thread(target=new_viewer_wrapper, args=(username, actual_token, client_id, broadcaster_id)).start()
+        enqueue_viewer(username, actual_token, client_id, broadcaster_id)
 
 def on_part(connection, event):
     username = event.source.nick
@@ -53,15 +54,17 @@ def on_names(connection, event):
         logging.info(f"usernames: {usernames}")
         for username in usernames:
             if username.lower() != nickname.lower() and username != "own3d":
-                threading.Thread(target=new_viewer_wrapper, args=(username, actual_token, client_id, broadcaster_id)).start()
+                enqueue_viewer(username, actual_token, client_id, broadcaster_id)
     elif event.type == "endofnames":
         logging.info(f"End of NAMES list for {event.arguments[1]}.")
 
 def handle_chat_message_wrapper(connection, username, message):
-    try:
-        asyncio.run(handle_chat_message(connection, username, message))
-    except Exception as e:
-        logging.error(f"Error handling message from {username}: {e}")
+    future = asyncio.run_coroutine_threadsafe(
+        handle_chat_message(connection, username, message), _loop
+    )
+    future.add_done_callback(
+        lambda f: logging.error(f"Error handling message from {username}: {f.exception()}") if f.exception() else None
+    )
 
 async def handle_chat_message(connection, username, message):
     logging.info(f"Handling message from {username}: {message}")
@@ -106,8 +109,8 @@ def on_pubmsg(connection, event):
     user_found = any(username == viewer.username for viewer in viewers)
 
     if not user_found:
-        threading.Thread(target=new_viewer_wrapper, args=(username, actual_token, client_id, broadcaster_id)).start()
-    threading.Thread(target=handle_chat_message_wrapper, args=(connection, username, message)).start()
+        enqueue_viewer(username, actual_token, client_id, broadcaster_id)
+    handle_chat_message_wrapper(connection, username, message)
 
 def on_privnotice(connection, event):
     message = event.arguments[0] if event.arguments else ""
@@ -126,10 +129,12 @@ def on_privnotice(connection, event):
             shutdown_event.set()
 
 def on_usernotice_wrapper(connection, event):
-    try:
-        asyncio.run(on_usernotice(connection, event))
-    except Exception as e:
-        logging.error(f"Error handling usernotice {event}: {e}")
+    future = asyncio.run_coroutine_threadsafe(
+        on_usernotice(connection, event), _loop
+    )
+    future.add_done_callback(
+        lambda f: logging.error(f"Error handling usernotice {event}: {f.exception()}") if f.exception() else None
+    )
 
 async def on_usernotice(connection, event):
     tags = {tag["key"]: tag["value"] for tag in event.tags}
@@ -161,12 +166,9 @@ async def on_usernotice(connection, event):
 
     if update_needed:
         if not viewer:
-            threading.Thread(
-                target=new_viewer_wrapper,
-                args=(username, actual_token, client_id, broadcaster_id)
-            ).start()
+            enqueue_viewer(username, actual_token, client_id, broadcaster_id)
         else:
-            threading.Thread(target=viewer.update_status).start()
+            enqueue_status_update(viewer)
 
     # Handle recipient viewer if it's a subgift
     if msg_id == "subgift":
@@ -175,12 +177,9 @@ async def on_usernotice(connection, event):
             recipient = recipient.lower()
             recipient_viewer = next((v for v in viewers if v.username == recipient), None)
             if not recipient_viewer:
-                threading.Thread(
-                    target=new_viewer_wrapper,
-                    args=(recipient, actual_token, client_id, broadcaster_id)
-                ).start()
+                enqueue_viewer(recipient, actual_token, client_id, broadcaster_id)
             else:
-                threading.Thread(target=recipient_viewer.update_status).start()
+                enqueue_status_update(recipient_viewer)
             tts_message = f"{username} gifted a sub to {recipient}, thank you very much for the gifted sub!"
         else:
             tts_message = f"{username} gifted a sub, thank you very much for the gifted sub!"
@@ -308,9 +307,10 @@ def _token_refresh_loop():
             logging.warning("Proactive token refresh failed — will retry next cycle.")
 
 
-def run_Twitch_Bot():
+def run_Twitch_Bot(loop):
     global server, port, client_id, client_secret
-    global token, actual_token, nickname, channel, broadcaster_id
+    global token, actual_token, nickname, channel, broadcaster_id, _loop
+    _loop = loop
 
     server = 'irc.chat.twitch.tv'
     port = 6697

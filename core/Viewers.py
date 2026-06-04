@@ -1,9 +1,11 @@
 import logging
 import threading
 import requests
+from concurrent.futures import ThreadPoolExecutor
 
 viewers = []
 _viewers_lock = threading.Lock()
+_viewer_executor = ThreadPoolExecutor(max_workers=20, thread_name_prefix="viewer-lookup")
 
 youtube_viewers = []
 youtube_viewer_status = {}  # username_lower -> {"member": bool, "moderator": bool}
@@ -222,6 +224,14 @@ def new_viewer_wrapper(username, token, client_id, broadcaster_id):
         new_viewer(username, token, client_id, broadcaster_id)
     except Exception as e:
         logging.error(f"Error adding viewer {username}: {e}")
+
+
+def enqueue_viewer(username, token, client_id, broadcaster_id):
+    _viewer_executor.submit(new_viewer_wrapper, username, token, client_id, broadcaster_id)
+
+
+def enqueue_status_update(viewer):
+    _viewer_executor.submit(viewer.update_status)
 
 
 def remove_viewer(username):
