@@ -6,9 +6,9 @@ import io
 
 import edge_tts
 
-from TTSObsWebsocket import update_latest_message
-from config import load_settings
-from Viewers import viewers
+from core.TTSObsWebsocket import update_latest_message
+from core.config import load_settings
+from core.Viewers import viewers
 
 settings = load_settings("settings.json")
 OBS_Browser_Source = settings.get("OBS_Browser_Source", False)

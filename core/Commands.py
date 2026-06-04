@@ -9,9 +9,9 @@ import json
 import re
 import aiohttp
 
-from BotTTS import text_to_shout, text_to_speech
-from Viewers import viewers
-from config import settings_data, get_social_links, OBS_Browser_Source, Sanity_Bar
+from core.BotTTS import text_to_shout, text_to_speech
+from core.Viewers import viewers
+from core.config import settings_data, get_social_links, OBS_Browser_Source, Sanity_Bar
 
 
 class BaseCommand:
@@ -111,10 +111,10 @@ class RaffleCommand(BaseCommand):
             filter_type = raffle_message[1].strip().lower() if len(raffle_message) > 1 else ""
 
             if channel == "YouTube":
-                from Viewers import youtube_viewers
+                from core.Viewers import youtube_viewers
                 eligible_viewers = [v for v in youtube_viewers if v != username.lower()]
             elif channel == "TikTok":
-                from Viewers import tiktok_viewers
+                from core.Viewers import tiktok_viewers
                 eligible_viewers = [v for v in tiktok_viewers if v != username.lower()]
             elif "followers" in filter_type:
                 eligible_viewers = [viewer.username for viewer in viewers if viewer.following and viewer.username != username]
@@ -359,7 +359,7 @@ class SocialsCommand(BaseCommand):
             self.on_cooldown(send_reply, username)
 
 
-from TTSObsWebsocket import broadcast_message, connected_clients
+from core.TTSObsWebsocket import broadcast_message, connected_clients
 
 class VoteCommand(BaseCommand):
     active_vote = None
@@ -379,7 +379,7 @@ class VoteCommand(BaseCommand):
         if username.lower() == streamer:
             return True
         if channel == "YouTube":
-            from Viewers import youtube_viewer_status
+            from core.Viewers import youtube_viewer_status
             return youtube_viewer_status.get(username.lower(), {}).get("moderator", False)
         return False
 

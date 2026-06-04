@@ -66,13 +66,13 @@ The TTS audio is generated on the bot's host machine and streamed to OBS via Web
 
 **If the bot is running on the same machine as OBS:**
 - In OBS, add a Browser Source and tick **Local File**
-- Point it to `tts_display.html`
+- Point it to `obs/tts_display.html`
 
 **If the bot is running on a remote server (e.g. Ubuntu):**
 - In OBS, add a Browser Source and tick **Local File**
 - Set the URL to:
   ```
-  file:///C:/path/to/tts_display.html?host=<server-ip>:8080
+  file:///C:/path/to/obs/tts_display.html?host=<server-ip>:8080
   ```
   Replace `<server-ip>` with your server's local IP (e.g. `192.168.1.50`)
 - Make sure port `8080` is open on the server (`sudo ufw allow 8080`)
@@ -207,13 +207,13 @@ The bot can run headlessly on a remote Linux server while your OBS stays on your
 
 **On your local Windows PC (OBS):**
 
-1. Copy `tts_display.html` (and `sanity_bar.html` if using the sanity bar) to your PC.
+1. Copy `obs/tts_display.html` (and `obs/sanity_bar.html` if using the sanity bar) to your PC.
 
-2. In OBS, add a Browser Source → tick **Local File** → point it to `tts_display.html`.
+2. In OBS, add a Browser Source → tick **Local File** → point it to `obs/tts_display.html`.
 
 3. Append the server's local IP and port as a query parameter:
    ```
-   file:///C:/path/to/tts_display.html?host=<server-ip>:8080
+   file:///C:/path/to/obs/tts_display.html?host=<server-ip>:8080
    ```
    Replace `<server-ip>` with your server's LAN IP (e.g. `192.168.1.50`).
 

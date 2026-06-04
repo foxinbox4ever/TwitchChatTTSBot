@@ -7,12 +7,12 @@ import json
 import time
 import asyncio
 
-from BotTTS import text_to_speech
-from Commands import COMMANDS, VoteCommand
-from SoundEffect import play_sound_from_file
-from config import settings_data, sound_effects, enable_sound_effects
-from Viewers import viewers, new_viewer_wrapper, remove_viewer, get_broadcaster_id
-from authorisation_url import autherise, refresh_token_if_available
+from core.BotTTS import text_to_speech
+from core.Commands import COMMANDS, VoteCommand
+from core.SoundEffect import play_sound_from_file
+from core.config import settings_data, sound_effects, enable_sound_effects
+from core.Viewers import viewers, new_viewer_wrapper, remove_viewer, get_broadcaster_id
+from core.authorisation_url import autherise, refresh_token_if_available
 
 logging.basicConfig(level=logging.INFO)
 shutdown_event = threading.Event()

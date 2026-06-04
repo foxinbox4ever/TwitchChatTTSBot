@@ -6,11 +6,11 @@ from TikTokLive import TikTokLiveClient
 from TikTokLive.client.errors import UserOfflineError, UserNotFoundError
 from TikTokLive.events import CommentEvent, ConnectEvent, DisconnectEvent, GiftEvent
 
-from BotTTS import text_to_speech
-from Commands import COMMANDS, VoteCommand
-from SoundEffect import play_sound_from_file
-from config import settings_data, sound_effects
-from Viewers import add_tiktok_viewer
+from core.BotTTS import text_to_speech
+from core.Commands import COMMANDS, VoteCommand
+from core.SoundEffect import play_sound_from_file
+from core.config import settings_data, sound_effects
+from core.Viewers import add_tiktok_viewer
 
 shutdown_event = threading.Event()
 

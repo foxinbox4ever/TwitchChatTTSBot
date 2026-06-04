@@ -3,7 +3,7 @@ import logging
 import json
 import asyncio
 
-from config import load_settings
+from core.config import load_settings
 
 OBS_Bobble_image = load_settings("settings.json")["OBS_Bobble_image"]
 connected_clients = set()

@@ -6,12 +6,12 @@ import asyncio
 
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
-from BotTTS import text_to_speech
-from Commands import COMMANDS, VoteCommand
-from SoundEffect import play_sound_from_file
-from config import settings_data, sound_effects
-from Viewers import add_youtube_viewer
-from authorisation_url import authenticate_youtube
+from core.BotTTS import text_to_speech
+from core.Commands import COMMANDS, VoteCommand
+from core.SoundEffect import play_sound_from_file
+from core.config import settings_data, sound_effects
+from core.Viewers import add_youtube_viewer
+from core.authorisation_url import authenticate_youtube
 
 shutdown_event = threading.Event()
 live_chat_id = None

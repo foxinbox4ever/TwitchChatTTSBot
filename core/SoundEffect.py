@@ -4,7 +4,7 @@ import time
 import logging
 import os
 
-from config import load_settings
+from core.config import load_settings
 
 sound_effects_cooldown = load_settings("settings.json")['sound_effects_cooldown']
 

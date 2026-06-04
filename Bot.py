@@ -19,11 +19,11 @@ import logging
 import threading
 import asyncio
 
-from TTSObsWebsocket import start_websocket_server
-from TwitchBot import run_Twitch_Bot, shutdown_event
-from YouTubeBot import run_YouTube_Bot
-from TikTokBot import run_TikTok_Bot
-from config import process_settings
+from core.TTSObsWebsocket import start_websocket_server
+from platforms.TwitchBot import run_Twitch_Bot, shutdown_event
+from platforms.YouTubeBot import run_YouTube_Bot
+from platforms.TikTokBot import run_TikTok_Bot
+from core.config import process_settings
 
 
 def start_twitch_bot():
