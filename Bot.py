@@ -1,7 +1,19 @@
 import subprocess
 import sys
+import pkg_resources
 
-subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt", "-q"])
+
+def ensure_requirements(requirements_file="requirements.txt"):
+    with open(requirements_file) as f:
+        reqs = [line.split("#")[0].strip() for line in f if line.split("#")[0].strip()]
+    try:
+        pkg_resources.require(reqs)
+    except (pkg_resources.DistributionNotFound, pkg_resources.VersionConflict) as e:
+        print(f"Installing missing requirements: {e}")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", requirements_file, "-q"])
+
+
+ensure_requirements()
 
 import logging
 import threading
