@@ -12,7 +12,7 @@ from Commands import COMMANDS, VoteCommand
 from SoundEffect import play_sound_from_file
 from config import settings_data, sound_effects, enable_sound_effects
 from Viewers import viewers, new_viewer_wrapper, remove_viewer, get_broadcaster_id
-from Autherisation_URL import autherise, refresh_token_if_available
+from authorisation_url import autherise, refresh_token_if_available
 
 logging.basicConfig(level=logging.INFO)
 shutdown_event = threading.Event()

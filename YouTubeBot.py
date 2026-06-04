@@ -11,7 +11,7 @@ from Commands import COMMANDS, VoteCommand
 from SoundEffect import play_sound_from_file
 from config import settings_data, sound_effects
 from Viewers import add_youtube_viewer
-from Autherisation_URL import authenticate_youtube
+from authorisation_url import authenticate_youtube
 
 shutdown_event = threading.Event()
 live_chat_id = None
