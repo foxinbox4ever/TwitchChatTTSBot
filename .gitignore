@@ -2,7 +2,9 @@ settings.json
 __pycache__/
 *.pyc
 .idea/
+.cache
 .cache/
+.claude/
 venv/
 tts-env/
 logs/
