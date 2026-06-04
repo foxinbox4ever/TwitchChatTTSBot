@@ -136,7 +136,7 @@ If you have new command ideas, join the Discord and message there: [Discord](htt
 | `TTS_Voice` | string | The system/bot voice, always used for bot announcements (e.g. sub/raid alerts). Also used for all TTS when `TTS_Random_Voice` is `false`. Run `edge-tts --list-voices` to see options (e.g. `"en-GB-SoniaNeural"`) |
 | `OBS_Websocket_Port` | number | Port the WebSocket server listens on (default `8080`) |
 | `OBS_Browser_Source` | `true`/`false` | Enables the OBS browser source and WebSocket TTS delivery |
-| `OBS_Bobble_image` | file path | Path to the bobble head image shown in the browser source |
+| `OBS_Bobble_image` | file path | Path to the bobble head image shown in the browser source (default: `obs/dwightHead.png`) |
 | `Sanity_Bar` | `true`/`false` | Enables the sanity bar in the OBS browser source |
 | `enable_sound_effects` | `true`/`false` | Enables or disables sound effects |
 | `sound_effects_file_path` | file path | Folder containing sound effect MP3 files |

@@ -12,7 +12,7 @@ enable_sound_effects = False
 sound_effects = None
 sound_effects_cooldown = 0
 OBS_Browser_Source = False
-OBS_Bobble_image = "dwightHead.png"
+OBS_Bobble_image = "obs/dwightHead.png"
 TTS_Access = "all"
 TTS_Access_Twitch = "all"
 TTS_Access_YouTube = "all"
@@ -49,7 +49,7 @@ def load_settings(settings_path):
     TikTok_Bot = settings_data.get("TikTok_Bot", False)
     sound_effects_cooldown = settings_data.get("sound_effects_cooldown", 0)
     OBS_Browser_Source = settings_data.get("OBS_Browser_Source", False)
-    OBS_Bobble_image = settings_data.get("OBS_Bobble_image", "dwightHead.png")
+    OBS_Bobble_image = settings_data.get("OBS_Bobble_image", "obs/dwightHead.png")
     TTS_Access = settings_data.get("TTS_Access", "all").lower()
     TTS_Access_Twitch = settings_data.get("TTS_Access_Twitch", TTS_Access).lower()
     TTS_Access_YouTube = settings_data.get("TTS_Access_YouTube", TTS_Access).lower()
