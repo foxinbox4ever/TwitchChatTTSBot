@@ -89,8 +89,8 @@ def refresh_token_if_available(client_id, client_secret):
             "client_secret": client_secret,
         }
 
-        response = requests.post("https://id.twitch.tv/oauth2/token", data=payload)
-        logging.info(f"Token refresh response: {response.status_code} - {response.text}")
+        response = requests.post("https://id.twitch.tv/oauth2/token", data=payload, timeout=10)
+        logging.info(f"Token refresh response: {response.status_code}")
 
         if response.status_code != 200:
             logging.warning("Failed to refresh token. Will require full authorization.")
@@ -155,7 +155,7 @@ def autherise(client_id, client_secret):
     httpd.server_close()
 
     auth_code = OAuthHandler.auth_code
-    logging.info(f"Received auth code: {auth_code}")
+    logging.info("Auth code received.")
 
     # Exchange code for access token
     token_url = "https://id.twitch.tv/oauth2/token"
@@ -167,8 +167,8 @@ def autherise(client_id, client_secret):
         "redirect_uri": REDIRECT_URI,
     }
 
-    response = requests.post(token_url, data=payload)
-    logging.info(f"Token exchange response: {response.status_code} - {response.text}")
+    response = requests.post(token_url, data=payload, timeout=10)
+    logging.info(f"Token exchange response: {response.status_code}")
 
     if response.status_code != 200:
         logging.error("Failed to exchange code for token.")
@@ -284,7 +284,7 @@ def authorise_youtube(client_id, client_secret):
     httpd.server_close()
 
     auth_code = YouTubeOAuthHandler.auth_code
-    logging.info(f"Received YouTube auth code: {auth_code}")
+    logging.info("YouTube auth code received.")
 
     # Exchange code for tokens
     token_url = "https://oauth2.googleapis.com/token"
@@ -296,8 +296,8 @@ def authorise_youtube(client_id, client_secret):
         "grant_type": "authorization_code",
     }
 
-    response = requests.post(token_url, data=payload)
-    logging.info(f"YouTube token exchange response: {response.status_code} - {response.text}")
+    response = requests.post(token_url, data=payload, timeout=10)
+    logging.info(f"YouTube token exchange response: {response.status_code}")
 
     if response.status_code != 200:
         logging.error("Failed to exchange code for YouTube tokens.")
@@ -343,8 +343,8 @@ def refresh_youtube_token(client_id, client_secret, refresh_token):
         "grant_type": "refresh_token",
     }
 
-    response = requests.post(token_url, data=payload)
-    logging.info(f"YouTube token refresh response: {response.status_code} - {response.text}")
+    response = requests.post(token_url, data=payload, timeout=10)
+    logging.info(f"YouTube token refresh response: {response.status_code}")
 
     if response.status_code != 200:
         logging.error("Failed to refresh YouTube token.")
@@ -387,7 +387,7 @@ def authenticate_youtube(client_id, client_secret):
 
     # Validate current token with a lightweight API call
     headers = {"Authorization": f"Bearer {access_token}"}
-    response = requests.get("https://www.googleapis.com/youtube/v3/channels?part=id&mine=true", headers=headers)
+    response = requests.get("https://www.googleapis.com/youtube/v3/channels?part=id&mine=true", headers=headers, timeout=10)
 
     if response.status_code == 200:
         logging.info("YouTube access token is valid.")

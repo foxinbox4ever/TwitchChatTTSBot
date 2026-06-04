@@ -26,6 +26,13 @@ class BaseCommand:
     def can_execute(self, username):
         current_time = time.time()
 
+        if len(BaseCommand.user_cooldowns) > 1000:
+            cutoff = current_time - 3600
+            stale = [u for u, cmds in BaseCommand.user_cooldowns.items()
+                     if all(t < cutoff for t in cmds.values())]
+            for u in stale:
+                del BaseCommand.user_cooldowns[u]
+
         if username not in BaseCommand.user_cooldowns:
             BaseCommand.user_cooldowns[username] = {}
 
@@ -619,6 +626,10 @@ class ShoutOutCommand(BaseCommand):
     async def execute(self, send_reply, username, message, channel, *args):
         if not self.can_execute(username):
             self.on_cooldown(send_reply, username)
+            return
+
+        if not VoteCommand._is_mod(username, channel):
+            send_reply(f"@{username}, only moderators can use !so.")
             return
 
         parts = message.split()

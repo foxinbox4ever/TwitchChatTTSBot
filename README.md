@@ -104,7 +104,7 @@ Commands are filtered per platform — `!help` only shows commands available on 
 | `!socials` | Lists all social media links from `settings.json` | All |
 | `!vote` | Lets mods create a chat poll — mod only on all platforms | All |
 | `!sanity` | Viewers vote on the streamer's sanity level | All |
-| `!so` | Gives a shout out to another streamer | All |
+| `!so` | Gives a shout out to another streamer — mod only on all platforms | All |
 
 If you have new command ideas, join the Discord and message there: [Discord](https://discord.gg/UM3rmnf9zV)
 

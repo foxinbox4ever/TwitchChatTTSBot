@@ -73,7 +73,8 @@ class Viewer:
         headers = self.get_headers()
         response = requests.get(
             f'https://api.twitch.tv/helix/users?login={self.username}',
-            headers=headers
+            headers=headers,
+            timeout=10
         )
         try:
             user_data = response.json()
@@ -101,12 +102,12 @@ class Viewer:
 
         headers = self.get_headers()
         follows_url = f'https://api.twitch.tv/helix/channels/followers?broadcaster_id={self.broadcaster_id}&user_id={self.user_id}'
-        response = requests.get(follows_url, headers=headers)
+        response = requests.get(follows_url, headers=headers, timeout=10)
 
-        logging.info(f"Follower API response: {response.status_code} - {response.text}")
+        logging.info(f"Follower API response: {response.status_code}")
 
         if response.status_code == 400:
-            logging.error(f"Bad Request: {response.text}")
+            logging.error("Bad Request: check broadcaster_id and user_id params")
             return False
 
         elif response.status_code == 401:
@@ -131,9 +132,9 @@ class Viewer:
 
         headers = self.get_headers()
         subs_url = f"https://api.twitch.tv/helix/subscriptions?broadcaster_id={self.broadcaster_id}&user_id={self.user_id}"
-        response = requests.get(subs_url, headers=headers)
+        response = requests.get(subs_url, headers=headers, timeout=10)
 
-        logging.info(f"Subscription API response: {response.status_code} - {response.text}")
+        logging.info(f"Subscription API response: {response.status_code}")
 
         if response.status_code == 200:
             data = response.json().get("data", [])
@@ -149,7 +150,7 @@ class Viewer:
             return False
 
         else:
-            logging.warning(f"Unexpected response: {response.status_code} - {response.text}")
+            logging.warning(f"Unexpected subscription response: {response.status_code}")
             return False
 
     def check_if_mod(self):
@@ -169,9 +170,9 @@ class Viewer:
             f"https://api.twitch.tv/helix/moderation/moderators"
             f"?broadcaster_id={self.broadcaster_id}&user_id={self.user_id}"
         )
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=10)
 
-        logging.info(f"Moderator API response: {response.status_code} - {response.text}")
+        logging.info(f"Moderator API response: {response.status_code}")
 
         if response.status_code == 401:
             logging.error("Unauthorized access. Missing scope: moderation:read")
@@ -243,7 +244,7 @@ def get_broadcaster_id(token, client_id, username):
         'Client-ID': client_id
     }
 
-    response = requests.get(f'https://api.twitch.tv/helix/users?login={username}', headers=headers)
+    response = requests.get(f'https://api.twitch.tv/helix/users?login={username}', headers=headers, timeout=10)
     try:
         user_data = response.json()
     except Exception as e:
