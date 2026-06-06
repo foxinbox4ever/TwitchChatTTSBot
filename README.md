@@ -83,6 +83,16 @@ The TTS audio is generated on the bot's host machine and streamed to OBS via Web
 - Tick **Refresh browser when scene becomes active**
 - Run `Bot.py` to start the WebSocket server
 
+**Changing the WebSocket port:**
+
+The default port is `8080`. To use a different port:
+1. Set `OBS_Websocket_Port` in `settings.json` to your chosen port
+2. In `obs/tts_display.html` and `obs/sanity_bar.html`, update the fallback in the `connectWebSocket` function:
+   ```js
+   const wsHost = params.get('host') || 'localhost:8080';
+   ```
+   Change `8080` to match. Alternatively, append `?host=<ip>:<port>` to the browser source URL in OBS — this overrides the hardcoded default without editing the HTML.
+
 **TTS behaviour in the browser source:**
 - Regular chat messages play immediately and overlap — multiple viewers talking at once will all be heard
 - Sub, follow, and other alert events stop all currently playing TTS, show a confetti overlay, and play the alert announcement. Any messages that arrive during the alert are queued and play normally once it finishes
