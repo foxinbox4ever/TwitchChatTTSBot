@@ -7,9 +7,20 @@ import unittest
 # heavy optional dependencies (edge_tts, aiohttp, websockets, etc.)
 # ---------------------------------------------------------------------------
 
-# platforms/TwitchBot.py — follow polling new-follower detection
-def _detect_new_followers(followers: list, seen_ids: set) -> list:
-    return [f for f in followers if f["user_id"] not in seen_ids]
+# platforms/TwitchBot.py — EventSub subscription payload construction
+def _build_eventsub_subscription(broadcaster_id: str, session_id: str) -> dict:
+    return {
+        "type": "channel.follow",
+        "version": "2",
+        "condition": {
+            "broadcaster_user_id": broadcaster_id,
+            "moderator_user_id": broadcaster_id
+        },
+        "transport": {
+            "method": "websocket",
+            "session_id": session_id
+        }
+    }
 
 
 # platforms/YouTubeBot.py — event type → (tts_text, notification_type)
@@ -41,7 +52,7 @@ def _build_notification_payload(notification_type: str, username: str, audio_b64
     return payload
 
 
-# core/TTSObsWebsocket.py — broadcast_message isSub detection (lines 25-28)
+# core/TTSObsWebsocket.py — broadcast_message isSub detection
 def _is_sub_message(message: str) -> bool:
     return any(
         keyword in message.lower()
@@ -53,41 +64,32 @@ def _is_sub_message(message: str) -> bool:
 # Tests
 # ---------------------------------------------------------------------------
 
-class TestFollowPolling(unittest.TestCase):
+class TestEventSubSubscription(unittest.TestCase):
 
-    def test_detects_single_new_follower(self):
-        followers = [{"user_id": "456", "user_name": "bob"}]
-        new = _detect_new_followers(followers, seen_ids={"123"})
-        self.assertEqual(len(new), 1)
-        self.assertEqual(new[0]["user_name"], "bob")
+    def test_correct_event_type(self):
+        sub = _build_eventsub_subscription("123", "sess_abc")
+        self.assertEqual(sub["type"], "channel.follow")
 
-    def test_no_new_followers_when_all_seen(self):
-        followers = [
-            {"user_id": "123", "user_name": "alice"},
-            {"user_id": "456", "user_name": "bob"},
-        ]
-        new = _detect_new_followers(followers, seen_ids={"123", "456"})
-        self.assertEqual(new, [])
+    def test_correct_version(self):
+        sub = _build_eventsub_subscription("123", "sess_abc")
+        self.assertEqual(sub["version"], "2")
 
-    def test_multiple_new_followers(self):
-        followers = [
-            {"user_id": "1", "user_name": "alice"},
-            {"user_id": "2", "user_name": "bob"},
-            {"user_id": "3", "user_name": "carol"},
-        ]
-        new = _detect_new_followers(followers, seen_ids={"1"})
-        self.assertEqual(len(new), 2)
-        self.assertEqual({f["user_name"] for f in new}, {"bob", "carol"})
+    def test_condition_uses_broadcaster_id(self):
+        sub = _build_eventsub_subscription("456", "sess_abc")
+        self.assertEqual(sub["condition"]["broadcaster_user_id"], "456")
+        self.assertEqual(sub["condition"]["moderator_user_id"], "456")
 
-    def test_empty_follower_list(self):
-        self.assertEqual(_detect_new_followers([], seen_ids={"123"}), [])
+    def test_transport_is_websocket(self):
+        sub = _build_eventsub_subscription("123", "sess_abc")
+        self.assertEqual(sub["transport"]["method"], "websocket")
 
-    def test_empty_seen_ids_treats_all_as_new(self):
-        followers = [
-            {"user_id": "1", "user_name": "alice"},
-            {"user_id": "2", "user_name": "bob"},
-        ]
-        self.assertEqual(len(_detect_new_followers(followers, seen_ids=set())), 2)
+    def test_session_id_included(self):
+        sub = _build_eventsub_subscription("123", "sess_xyz")
+        self.assertEqual(sub["transport"]["session_id"], "sess_xyz")
+
+    def test_payload_is_json_serialisable(self):
+        sub = _build_eventsub_subscription("123", "sess_abc")
+        self.assertIsInstance(json.dumps(sub), str)
 
 
 class TestYouTubeEventText(unittest.TestCase):

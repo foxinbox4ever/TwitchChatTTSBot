@@ -7,6 +7,7 @@ import json
 import time
 import asyncio
 import aiohttp
+import websockets
 
 from core.BotTTS import text_to_speech, notification_tts
 from core.Commands import COMMANDS, VoteCommand
@@ -295,38 +296,77 @@ class IRCBot:
                 self.connection.close()
             logging.info("Bot disconnected.")
 
-async def _follow_polling_loop():
-    """Poll for new followers every 30s. Twitch removed follow events from IRC, so polling is required."""
-    seen_ids = set()
-    initialized = False
+async def _subscribe_to_eventsub(session_id: str):
+    headers = {
+        "Authorization": f"Bearer {actual_token}",
+        "Client-Id": client_id,
+        "Content-Type": "application/json"
+    }
+    body = {
+        "type": "channel.follow",
+        "version": "2",
+        "condition": {
+            "broadcaster_user_id": broadcaster_id,
+            "moderator_user_id": broadcaster_id
+        },
+        "transport": {
+            "method": "websocket",
+            "session_id": session_id
+        }
+    }
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://api.twitch.tv/helix/eventsub/subscriptions",
+                headers=headers,
+                json=body
+            ) as resp:
+                if resp.status == 202:
+                    logging.info("EventSub: subscribed to channel.follow")
+                else:
+                    text = await resp.text()
+                    logging.error(f"EventSub subscription failed: {resp.status} - {text}")
+    except Exception as e:
+        logging.error(f"EventSub subscription error: {e}")
+
+
+async def _eventsub_loop():
+    """Receive follow events in real time via Twitch EventSub WebSocket.
+    Twitch removed follow events from IRC — EventSub is the only way to get them without polling."""
+    EVENTSUB_URL = "wss://eventsub.wss.twitch.tv/ws"
+    connect_url = EVENTSUB_URL
 
     while not shutdown_event.is_set():
-        await asyncio.sleep(30)
         try:
-            headers = {"Authorization": f"Bearer {actual_token}", "Client-Id": client_id}
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"https://api.twitch.tv/helix/channels/followers?broadcaster_id={broadcaster_id}&first=10",
-                    headers=headers
-                ) as resp:
-                    data = await resp.json()
+            async with websockets.connect(connect_url) as ws:
+                connect_url = EVENTSUB_URL  # reset after any reconnect
+                async for raw in ws:
+                    msg = json.loads(raw)
+                    msg_type = msg.get("metadata", {}).get("message_type")
 
-            followers = data.get("data", [])
-            current_ids = {f["user_id"] for f in followers}
+                    if msg_type == "session_welcome":
+                        session_id = msg["payload"]["session"]["id"]
+                        await _subscribe_to_eventsub(session_id)
 
-            if not initialized:
-                seen_ids = current_ids
-                initialized = True
-            else:
-                for f in followers:
-                    if f["user_id"] not in seen_ids:
-                        seen_ids.add(f["user_id"])
-                        name = f["user_name"]
-                        logging.info(f"New follower detected: {name}")
-                        await notification_tts(f"{name} just followed!", "follow", name)
+                    elif msg_type == "notification":
+                        event = msg["payload"]["event"]
+                        username = event.get("user_name", "Someone")
+                        logging.info(f"EventSub: new follower {username}")
+                        await notification_tts(f"{username} just followed!", "follow", username)
+
+                    elif msg_type == "session_reconnect":
+                        connect_url = msg["payload"]["session"]["reconnect_url"]
+                        logging.info(f"EventSub: reconnecting to new URL")
+                        break
+
+                    elif msg_type == "revocation":
+                        logging.warning("EventSub: subscription revoked, reconnecting")
+                        break
 
         except Exception as e:
-            logging.error(f"Follow polling error: {e}")
+            if not shutdown_event.is_set():
+                logging.error(f"EventSub error: {e}")
+                await asyncio.sleep(10)
 
 
 def _token_refresh_loop():
@@ -387,7 +427,7 @@ def run_Twitch_Bot(loop):
     reconnect_bot()
 
     threading.Thread(target=_token_refresh_loop, daemon=True).start()
-    asyncio.run_coroutine_threadsafe(_follow_polling_loop(), _loop)
+    asyncio.run_coroutine_threadsafe(_eventsub_loop(), _loop)
 
     # Run until externally shut down
     while not shutdown_event.is_set():
