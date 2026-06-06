@@ -122,9 +122,13 @@ If you have new command ideas, join the Discord and message there: [Discord](htt
 
 The bot fires visual alerts on the OBS browser source with confetti for the following events. Each alert plays its own TTS announcement, pauses any ongoing chat TTS until it finishes, then resumes.
 
+All Twitch events are received in real time via the [Twitch EventSub WebSocket API](https://dev.twitch.tv/docs/eventsub/) — no polling.
+
 **Twitch**
-- New follower — polled every 30 seconds (Twitch removed follow events from IRC)
-- Sub / resub / gift sub — announced with confetti when the event fires
+- New follower — instant notification via EventSub
+- Sub / resub — resub messages typed by the viewer are read out in TTS
+- Gift sub / mystery gift — gifter and count announced
+- Bits/cheer — amount and any cheer message read out, confetti card shown
 - Raid — automatic shout out posted to chat with raider count
 
 **YouTube**
@@ -140,6 +144,7 @@ Alert types show different styles in the browser source:
 | New follower | ✨ | Purple |
 | New member / milestone / gift | ⭐ | Gold |
 | Super Chat | 💰 | Green |
+| Bits / cheer | 💎 | Blue |
 
 ---
 
