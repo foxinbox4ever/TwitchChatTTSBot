@@ -41,8 +41,13 @@ def _eventsub_sub_tts(sub_type: str, event: dict) -> str | None:
         months = event.get("cumulative_months", 0)
         name = event["user_login"]
         if months > 1:
-            return f"{name} resubbed for {months} months, thank you very much for the sub!"
-        return f"{name} resubbed, thank you very much for the sub!"
+            tts = f"{name} resubbed for {months} months, thank you very much for the sub!"
+        else:
+            tts = f"{name} resubbed, thank you very much for the sub!"
+        msg_text = (event.get("message") or {}).get("text", "")
+        if msg_text:
+            tts += f" They said: {msg_text}"
+        return tts
     if sub_type == "channel.subscription.gift":
         name = event.get("user_login") if not event.get("is_anonymous") else "Anonymous"
         total = event.get("total", 1)
@@ -54,7 +59,12 @@ def _eventsub_sub_tts(sub_type: str, event: dict) -> str | None:
         return f"{name} raided, thank you very much for the raid!"
     if sub_type == "channel.cheer":
         name = event.get("user_login") if not event.get("is_anonymous") else "Anonymous"
-        return f"{name} gave bits, thank you very much for the bits!"
+        bits = event.get("bits", "some")
+        tts = f"{name} cheered {bits} bits, thank you very much for the bits!"
+        cheer_msg = event.get("message", "")
+        if cheer_msg:
+            tts += f" They said: {cheer_msg}"
+        return tts
     return None
 
 
@@ -286,6 +296,18 @@ class TestEventSubSubTTS(unittest.TestCase):
         self.assertNotIn("month", tts)
         self.assertIn("resubbed", tts)
 
+    def test_resub_with_message(self):
+        tts = _eventsub_sub_tts("channel.subscription.message", {
+            "user_login": "bob", "cumulative_months": 3,
+            "message": {"text": "love this stream"}
+        })
+        self.assertIn("love this stream", tts)
+        self.assertIn("They said", tts)
+
+    def test_resub_without_message_no_they_said(self):
+        tts = _eventsub_sub_tts("channel.subscription.message", {"user_login": "bob", "cumulative_months": 3})
+        self.assertNotIn("They said", tts)
+
     def test_single_gift(self):
         tts = _eventsub_sub_tts("channel.subscription.gift", {"user_login": "carol", "total": 1, "is_anonymous": False})
         self.assertIn("carol", tts)
@@ -306,12 +328,21 @@ class TestEventSubSubTTS(unittest.TestCase):
         self.assertIn("raided", tts)
 
     def test_cheer(self):
-        tts = _eventsub_sub_tts("channel.cheer", {"user_login": "eve", "is_anonymous": False})
+        tts = _eventsub_sub_tts("channel.cheer", {"user_login": "eve", "bits": 100, "is_anonymous": False})
         self.assertIn("eve", tts)
-        self.assertIn("bits", tts)
+        self.assertIn("100 bits", tts)
+
+    def test_cheer_with_message(self):
+        tts = _eventsub_sub_tts("channel.cheer", {"user_login": "eve", "bits": 500, "is_anonymous": False, "message": "gg wp"})
+        self.assertIn("500 bits", tts)
+        self.assertIn("gg wp", tts)
+
+    def test_cheer_without_message_no_they_said(self):
+        tts = _eventsub_sub_tts("channel.cheer", {"user_login": "eve", "bits": 100, "is_anonymous": False, "message": ""})
+        self.assertNotIn("They said", tts)
 
     def test_anonymous_cheer(self):
-        tts = _eventsub_sub_tts("channel.cheer", {"is_anonymous": True})
+        tts = _eventsub_sub_tts("channel.cheer", {"bits": 100, "is_anonymous": True})
         self.assertIn("Anonymous", tts)
 
     def test_tts_messages_recognised_as_sub_events(self):

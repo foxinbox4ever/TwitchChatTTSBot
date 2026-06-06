@@ -329,6 +329,9 @@ async def _handle_eventsub_notification(msg: dict):
             tts = f"{username} resubbed for {months} months, thank you very much for the sub!"
         else:
             tts = f"{username} resubbed, thank you very much for the sub!"
+        msg_text = (event.get("message") or {}).get("text", "")
+        if msg_text:
+            tts += f" They said: {msg_text}"
         await text_to_speech(tts)
 
     elif sub_type == "channel.subscription.gift":
@@ -360,7 +363,12 @@ async def _handle_eventsub_notification(msg: dict):
 
     elif sub_type == "channel.cheer":
         username = event.get("user_login") if not event.get("is_anonymous") else "Anonymous"
-        await text_to_speech(f"{username} gave bits, thank you very much for the bits!")
+        bits = event.get("bits", "some")
+        tts = f"{username} cheered {bits} bits, thank you very much for the bits!"
+        cheer_msg = event.get("message", "")
+        if cheer_msg:
+            tts += f" They said: {cheer_msg}"
+        await notification_tts(tts, "cheer", username)
 
 
 def _token_refresh_loop():
