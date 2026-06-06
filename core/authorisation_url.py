@@ -5,6 +5,7 @@ import http.server
 import socketserver
 import threading
 import logging
+logger = logging.getLogger(__name__)
 import time
 import urllib.parse
 import os
@@ -71,7 +72,7 @@ def refresh_token_if_available(client_id, client_secret):
     """Refreshes the Twitch access token if refresh token is available."""
     try:
         if not os.path.exists("settings.json"):
-            logging.info("settings.json not found. Cannot refresh token.")
+            logger.info("settings.json not found. Cannot refresh token.")
             return None
 
         with open("settings.json", "r") as f:
@@ -79,7 +80,7 @@ def refresh_token_if_available(client_id, client_secret):
 
         refresh_token = settings.get("Twitch_Refresh_Token")
         if not refresh_token:
-            logging.info("No refresh token found in settings.")
+            logger.info("No refresh token found in settings.")
             return None
 
         payload = {
@@ -90,10 +91,10 @@ def refresh_token_if_available(client_id, client_secret):
         }
 
         response = requests.post("https://id.twitch.tv/oauth2/token", data=payload, timeout=10)
-        logging.info(f"Token refresh response: {response.status_code}")
+        logger.info(f"Token refresh response: {response.status_code}")
 
         if response.status_code != 200:
-            logging.warning("Failed to refresh token. Will require full authorization.")
+            logger.warning("Failed to refresh token. Will require full authorization.")
             return None
 
         token_data = response.json()
@@ -106,24 +107,24 @@ def refresh_token_if_available(client_id, client_secret):
         with open("settings.json", "w") as f:
             json.dump(settings, f, indent=4)
 
-        logging.info("Access token successfully refreshed and saved.")
+        logger.info("Access token successfully refreshed and saved.")
         return f"oauth:{access_token}"
 
     except Exception as e:
-        logging.error(f"Error during token refresh: {e}")
+        logger.error(f"Error during token refresh: {e}")
         return None
 
 def autherise(client_id, client_secret):
     """Attempts to refresh token first; falls back to full OAuth if needed."""
-    logging.info("Attempting to refresh token if available...")
+    logger.info("Attempting to refresh token if available...")
 
     refreshed_token = refresh_token_if_available(client_id, client_secret)
     if refreshed_token:
-        logging.info("Token successfully refreshed. Skipping full OAuth.")
+        logger.info("Token successfully refreshed. Skipping full OAuth.")
         return refreshed_token
 
     # If refresh fails, proceed with full OAuth authorization
-    logging.info("Starting full OAuth authorization...")
+    logger.info("Starting full OAuth authorization...")
 
     auth_url = (
         "https://id.twitch.tv/oauth2/authorize"
@@ -139,13 +140,13 @@ def autherise(client_id, client_secret):
     webbrowser.open(auth_url)
 
     httpd = start_http_server()
-    logging.info("Waiting for Twitch OAuth redirect on port 8081...")
+    logger.info("Waiting for Twitch OAuth redirect on port 8081...")
 
     timeout = 60  # seconds
     start_time = time.time()
     while OAuthHandler.auth_code is None:
         if time.time() - start_time > timeout:
-            logging.error("OAuth timeout: No code received within 60 seconds.")
+            logger.error("OAuth timeout: No code received within 60 seconds.")
             httpd.shutdown()
             httpd.server_close()
             return None
@@ -155,7 +156,7 @@ def autherise(client_id, client_secret):
     httpd.server_close()
 
     auth_code = OAuthHandler.auth_code
-    logging.info("Auth code received.")
+    logger.info("Auth code received.")
 
     # Exchange code for access token
     token_url = "https://id.twitch.tv/oauth2/token"
@@ -168,10 +169,10 @@ def autherise(client_id, client_secret):
     }
 
     response = requests.post(token_url, data=payload, timeout=10)
-    logging.info(f"Token exchange response: {response.status_code}")
+    logger.info(f"Token exchange response: {response.status_code}")
 
     if response.status_code != 200:
-        logging.error("Failed to exchange code for token.")
+        logger.error("Failed to exchange code for token.")
         return None
 
     token_data = response.json()
@@ -179,10 +180,10 @@ def autherise(client_id, client_secret):
     refresh_token = token_data.get("refresh_token", "")
 
     if not access_token:
-        logging.error("Access token missing from response.")
+        logger.error("Access token missing from response.")
         return None
 
-    logging.info("Access token received and validated.")
+    logger.info("Access token received and validated.")
 
     # Update settings.json
     try:
@@ -198,9 +199,9 @@ def autherise(client_id, client_secret):
         with open("settings.json", "w") as f:
             json.dump(settings, f, indent=4)
 
-        logging.info("Updated Twitch_Token and refresh token in settings.json.")
+        logger.info("Updated Twitch_Token and refresh token in settings.json.")
     except Exception as e:
-        logging.warning(f"Could not update settings.json: {e}")
+        logger.warning(f"Could not update settings.json: {e}")
 
     return f"oauth:{access_token}"  # Use this directly in IRC connection
 
@@ -268,13 +269,13 @@ def authorise_youtube(client_id, client_secret):
     webbrowser.open(auth_url)
 
     httpd = start_youtube_http_server()
-    logging.info("Waiting for YouTube OAuth redirect on port 8082...")
+    logger.info("Waiting for YouTube OAuth redirect on port 8082...")
 
     timeout = 120  # seconds, YouTube flow might take longer
     start_time = time.time()
     while YouTubeOAuthHandler.auth_code is None:
         if time.time() - start_time > timeout:
-            logging.error("OAuth timeout: No code received within 120 seconds.")
+            logger.error("OAuth timeout: No code received within 120 seconds.")
             httpd.shutdown()
             httpd.server_close()
             return None
@@ -284,7 +285,7 @@ def authorise_youtube(client_id, client_secret):
     httpd.server_close()
 
     auth_code = YouTubeOAuthHandler.auth_code
-    logging.info("YouTube auth code received.")
+    logger.info("YouTube auth code received.")
 
     # Exchange code for tokens
     token_url = "https://oauth2.googleapis.com/token"
@@ -297,10 +298,10 @@ def authorise_youtube(client_id, client_secret):
     }
 
     response = requests.post(token_url, data=payload, timeout=10)
-    logging.info(f"YouTube token exchange response: {response.status_code}")
+    logger.info(f"YouTube token exchange response: {response.status_code}")
 
     if response.status_code != 200:
-        logging.error("Failed to exchange code for YouTube tokens.")
+        logger.error("Failed to exchange code for YouTube tokens.")
         return None
 
     token_data = response.json()
@@ -308,10 +309,10 @@ def authorise_youtube(client_id, client_secret):
     refresh_token = token_data.get("refresh_token", "")
 
     if not access_token:
-        logging.error("Access token missing from YouTube token response.")
+        logger.error("Access token missing from YouTube token response.")
         return None
 
-    logging.info("Access token received and validated from YouTube.")
+    logger.info("Access token received and validated from YouTube.")
 
     # Save tokens to settings.json
     try:
@@ -326,9 +327,9 @@ def authorise_youtube(client_id, client_secret):
         with open("settings.json", "w") as f:
             json.dump(settings, f, indent=4)
 
-        logging.info("Updated YouTube_Token and refresh token in settings.json.")
+        logger.info("Updated YouTube_Token and refresh token in settings.json.")
     except Exception as e:
-        logging.warning(f"Could not update settings.json with YouTube tokens: {e}")
+        logger.warning(f"Could not update settings.json with YouTube tokens: {e}")
 
     return access_token
 
@@ -344,16 +345,16 @@ def refresh_youtube_token(client_id, client_secret, refresh_token):
     }
 
     response = requests.post(token_url, data=payload, timeout=10)
-    logging.info(f"YouTube token refresh response: {response.status_code}")
+    logger.info(f"YouTube token refresh response: {response.status_code}")
 
     if response.status_code != 200:
-        logging.error("Failed to refresh YouTube token.")
+        logger.error("Failed to refresh YouTube token.")
         return None
 
     token_data = response.json()
     new_access_token = token_data.get("access_token")
     if not new_access_token:
-        logging.error("No access token returned on refresh.")
+        logger.error("No access token returned on refresh.")
         return None
 
     # Update settings.json with new access token
@@ -367,16 +368,16 @@ def refresh_youtube_token(client_id, client_secret, refresh_token):
         with open("settings.json", "w") as f:
             json.dump(settings, f, indent=4)
 
-        logging.info("Refreshed YouTube access token saved in settings.json.")
+        logger.info("Refreshed YouTube access token saved in settings.json.")
     except Exception as e:
-        logging.warning(f"Could not update settings.json with refreshed YouTube token: {e}")
+        logger.warning(f"Could not update settings.json with refreshed YouTube token: {e}")
 
     return new_access_token
 
 def authenticate_youtube(client_id, client_secret):
     """Try existing token, refresh if needed, else reauthorize."""
     if not os.path.exists("settings.json"):
-        logging.info("settings.json not found. Starting full YouTube OAuth.")
+        logger.info("settings.json not found. Starting full YouTube OAuth.")
         return authorise_youtube(client_id, client_secret)
 
     with open("settings.json", "r") as f:
@@ -390,16 +391,16 @@ def authenticate_youtube(client_id, client_secret):
     response = requests.get("https://www.googleapis.com/youtube/v3/channels?part=id&mine=true", headers=headers, timeout=10)
 
     if response.status_code == 200:
-        logging.info("YouTube access token is valid.")
+        logger.info("YouTube access token is valid.")
         return access_token
     else:
-        logging.warning(f"Access token invalid (status {response.status_code}). Attempting refresh...")
+        logger.warning(f"Access token invalid (status {response.status_code}). Attempting refresh...")
 
     if refresh_token:
         new_token = refresh_youtube_token(client_id, client_secret, refresh_token)
         if new_token:
-            logging.info("YouTube token successfully refreshed.")
+            logger.info("YouTube token successfully refreshed.")
             return new_token
 
-    logging.warning("Refresh failed or no refresh token. Falling back to full OAuth.")
+    logger.warning("Refresh failed or no refresh token. Falling back to full OAuth.")
     return authorise_youtube(client_id, client_secret)

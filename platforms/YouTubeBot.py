@@ -1,4 +1,5 @@
 import logging
+logger = logging.getLogger(__name__)
 import threading
 import time
 import json
@@ -21,7 +22,7 @@ bot_channel_id = None  # The bot's own YouTube channel ID (to skip self-messages
 
 
 def get_live_chat_id(yt_client, channel_id):
-    logging.info("Getting live broadcast chat ID...")
+    logger.info("Getting live broadcast chat ID...")
     response = yt_client.liveBroadcasts().list(
         part='snippet',
         broadcastStatus='active',
@@ -30,7 +31,7 @@ def get_live_chat_id(yt_client, channel_id):
 
     items = response.get("items", [])
     if not items:
-        logging.warning("No active broadcasts found.")
+        logger.warning("No active broadcasts found.")
         return None
     return items[0]['snippet']['liveChatId']
 
@@ -42,7 +43,7 @@ def get_bot_channel_id(yt_client):
         if items:
             return items[0]['id']
     except Exception as e:
-        logging.warning(f"Could not retrieve bot channel ID: {e}")
+        logger.warning(f"Could not retrieve bot channel ID: {e}")
     return None
 
 
@@ -62,7 +63,7 @@ def send_youtube_message(message):
             }
         ).execute()
     except Exception as e:
-        logging.error(f"Failed to send YouTube message: {e}")
+        logger.error(f"Failed to send YouTube message: {e}")
 
 
 def poll_chat_messages():
@@ -76,7 +77,7 @@ def poll_chat_messages():
         ).execute()
         next_page_token = response.get("nextPageToken")
     except Exception as e:
-        logging.error(f"Failed to get initial page token: {e}")
+        logger.error(f"Failed to get initial page token: {e}")
         next_page_token = None
 
     while not shutdown_event.is_set():
@@ -103,7 +104,7 @@ def poll_chat_messages():
                 add_youtube_viewer(author, is_member=is_member, is_moderator=is_moderator)
 
                 if msg_type == "newSponsorEvent":
-                    logging.info(f"[YouTube] New member: {author}")
+                    logger.info(f"[YouTube] New member: {author}")
                     asyncio.run_coroutine_threadsafe(
                         notification_tts(f"{author} just became a member!", "member", author), _loop
                     )
@@ -112,7 +113,7 @@ def poll_chat_messages():
                 elif msg_type == "memberMilestoneChatEvent":
                     details = snippet.get("memberMilestoneChatDetails", {})
                     months = details.get("memberMonth", "")
-                    logging.info(f"[YouTube] Member milestone: {author} ({months} months)")
+                    logger.info(f"[YouTube] Member milestone: {author} ({months} months)")
                     asyncio.run_coroutine_threadsafe(
                         notification_tts(f"{author} has been a member for {months} months!", "member", author), _loop
                     )
@@ -121,7 +122,7 @@ def poll_chat_messages():
                 elif msg_type == "membershipGiftingEvent":
                     details = snippet.get("membershipGiftingDetails", {})
                     count = details.get("giftMembershipsCount", "some")
-                    logging.info(f"[YouTube] Membership gift: {author} gifted {count}")
+                    logger.info(f"[YouTube] Membership gift: {author} gifted {count}")
                     asyncio.run_coroutine_threadsafe(
                         notification_tts(f"{author} gifted {count} memberships!", "member", author), _loop
                     )
@@ -134,14 +135,14 @@ def poll_chat_messages():
                     tts_text = f"{author} sent a super chat of {amount}!"
                     if comment:
                         tts_text += f" They said: {comment}"
-                    logging.info(f"[YouTube] Super chat: {author} {amount}")
+                    logger.info(f"[YouTube] Super chat: {author} {amount}")
                     asyncio.run_coroutine_threadsafe(
                         notification_tts(tts_text, "superchat", author), _loop
                     )
                     continue
 
                 text = snippet["displayMessage"]
-                logging.info(f"[YouTube Chat] {author}: {text}")
+                logger.debug(f"[YouTube Chat] {author}: {text}")
                 threading.Thread(
                     target=handle_chat_message_wrapper,
                     args=(author, text),
@@ -153,7 +154,7 @@ def poll_chat_messages():
             time.sleep(polling_interval)
 
         except Exception as e:
-            logging.error(f"Error polling chat: {e}")
+            logger.error(f"Error polling chat: {e}")
             time.sleep(5)
 
 
@@ -162,7 +163,7 @@ def handle_chat_message_wrapper(username, message):
         handle_chat_message(username, message), _loop
     )
     future.add_done_callback(
-        lambda f: logging.error(f"Error in message handler: {f.exception()}") if f.exception() else None
+        lambda f: logger.error(f"Error in message handler: {f.exception()}") if f.exception() else None
     )
 
 
@@ -194,7 +195,7 @@ async def handle_chat_message(username, message):
         await text_to_speech(tts_message, platform="YouTube")
 
     except Exception as e:
-        logging.error(f"Error processing message: {e}")
+        logger.error(f"Error processing message: {e}")
 
 
 def run_YouTube_Bot(loop):
@@ -206,16 +207,16 @@ def run_YouTube_Bot(loop):
     client_secret = settings_data.get("YouTube_Client_Secret")
 
     if not channel_id or not client_id or not client_secret:
-        logging.error("Missing YouTube credentials in settings.json (YouTube_Channel_ID, YouTube_Client_ID, YouTube_Client_Secret).")
+        logger.error("Missing YouTube credentials in settings.json (YouTube_Channel_ID, YouTube_Client_ID, YouTube_Client_Secret).")
         return
 
     if channel_id == "Channel ID" or client_id == "" or client_secret == "":
-        logging.error("YouTube credentials appear to be placeholders. Please fill in settings.json.")
+        logger.error("YouTube credentials appear to be placeholders. Please fill in settings.json.")
         return
 
     access_token = authenticate_youtube(client_id, client_secret)
     if not access_token:
-        logging.error("YouTube authentication failed. Bot will not run.")
+        logger.error("YouTube authentication failed. Bot will not run.")
         return
 
     refresh_token = settings_data.get("YouTube_Refresh_Token", "")
@@ -230,13 +231,13 @@ def run_YouTube_Bot(loop):
 
     bot_channel_id = get_bot_channel_id(youtube)
     if bot_channel_id:
-        logging.info(f"Bot channel ID: {bot_channel_id} (self-messages will be filtered)")
+        logger.info(f"Bot channel ID: {bot_channel_id} (self-messages will be filtered)")
 
     live_chat_id = get_live_chat_id(youtube, channel_id)
     if not live_chat_id:
-        logging.error("Could not retrieve Live Chat ID. Ensure you're live.")
+        logger.error("Could not retrieve Live Chat ID. Ensure you're live.")
         return
 
-    logging.info("YouTube bot is now connected to live chat.")
+    logger.info("YouTube bot is now connected to live chat.")
     poll_chat_messages()
-    logging.info("YouTube bot shutting down.")
+    logger.info("YouTube bot shutting down.")

@@ -2,13 +2,12 @@ from pydub import AudioSegment
 from pydub.playback import play
 import time
 import logging
+logger = logging.getLogger(__name__)
 import os
 
 from core.config import load_settings
 
 sound_effects_cooldown = load_settings("settings.json")['sound_effects_cooldown']
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s') # Set up logging
 
 class Sound:
     def __init__(self, filePath, coolDown=sound_effects_cooldown):
@@ -45,7 +44,7 @@ class Sound:
         try:
             return AudioSegment.from_mp3(self.filePath)
         except FileNotFoundError:
-            logging.error(f"File not found: {self.filePath}")
+            logger.error(f"File not found: {self.filePath}")
             return None
 
     def play_with_cooldown(self):
@@ -56,26 +55,26 @@ class Sound:
             soundEffect = self._load_sound()
             if soundEffect:
                 play(soundEffect)
-                logging.info(f"Played sound: {self.filePath}")
+                logger.info(f"Played sound: {self.filePath}")
         else:
-            logging.info(f"Sound is in cooldown: {self.filePath}")
+            logger.debug(f"Sound is in cooldown: {self.filePath}")
 
     def play(self):
         """Play sound without cooldown."""
         soundEffect = self._load_sound()
         if soundEffect:
             play(soundEffect)
-            logging.info(f"Played sound: {self.filePath}")
+            logger.info(f"Played sound: {self.filePath}")
 
 # Function to create Sound instances for each .mp3 file
 def load_sound_effects(sound_folder):
-    logging.info(f"Loading sound effects from {sound_folder}")
+    logger.info(f"Loading sound effects from {sound_folder}")
     sound_objects = []
     for filename in os.listdir(sound_folder):
         if filename.endswith(".mp3"):
             filePath = os.path.join(sound_folder, filename)
             sound_objects.append(Sound(filePath))
-            logging.info(f"Loaded sound effect: {filename}")
+            logger.info(f"Loaded sound effect: {filename}")
 
     return sound_objects
 
@@ -92,7 +91,7 @@ def play_sound_from_file(sound_objects, file_name, cool_down):
         else:
             sound_to_play.play()
     else:
-        logging.info(f"Sound '{file_name}' not found in sound effects folder.")
+        logger.debug(f"Sound '{file_name}' not found in sound effects folder.")
 
 def set_sound_cooldown_from_file(sound_objects, file_name, cool_down):
     sound = get_sound_from_file(sound_objects, file_name)
@@ -100,4 +99,4 @@ def set_sound_cooldown_from_file(sound_objects, file_name, cool_down):
     if sound:
         sound.coolDown = cool_down
     else:
-        logging.info(f"Sound '{file_name}' not found in sound effects folder.")
+        logger.debug(f"Sound '{file_name}' not found in sound effects folder.")

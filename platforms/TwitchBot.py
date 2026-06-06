@@ -1,6 +1,7 @@
 import os
 import ssl
 import logging
+logger = logging.getLogger(__name__)
 import threading
 import irc.client
 import json
@@ -16,7 +17,6 @@ from core.config import settings_data, sound_effects, enable_sound_effects
 from core.Viewers import viewers, enqueue_viewer, enqueue_status_update, remove_viewer, get_broadcaster_id
 from core.authorisation_url import autherise, refresh_token_if_available
 
-logging.basicConfig(level=logging.INFO)
 shutdown_event = threading.Event()
 _loop = None
 
@@ -25,10 +25,9 @@ bot = None
 irc_thread = None
 
 def on_any_event(connection, event):
-    logging.info(f"Event received: {event.type} - Arguments: {event.arguments}")
+    logger.debug(f"Event received: {event.type} - Arguments: {event.arguments}")
 
 def on_connect(connection, event):
-    logging.info(f"Connected to {connection.server}")
     connection.cap("REQ", ":twitch.tv/membership")
     connection.cap("REQ", ":twitch.tv/commands")
     connection.cap("REQ", ":twitch.tv/tags")
@@ -36,40 +35,43 @@ def on_connect(connection, event):
 
 def on_join(connection, event):
     username = event.source.nick
-    logging.info(f"{username} has joined {channel}")
-    if username.lower() != nickname.lower() and username != "own3d":
-        enqueue_viewer(username, actual_token, client_id, broadcaster_id)
+    if username.lower() == nickname.lower():
+        logger.info(f"Bot joined channel: {channel}")
+    else:
+        logger.debug(f"{username} has joined {channel}")
+        if username != "own3d":
+            enqueue_viewer(username, actual_token, client_id, broadcaster_id)
 
 def on_part(connection, event):
     username = event.source.nick
-    logging.info(f"{username} has left {channel}")
+    logger.debug(f"{username} has left {channel}")
     remove_viewer(username)
 
 def on_ping(connection, event):
     ping_message = event.arguments[0] if event.arguments else ""
-    logging.info(f"Received PING: {ping_message}")
+    logger.debug(f"Received PING: {ping_message}")
     connection.send_raw(f"PONG :{ping_message}")
 
 def on_names(connection, event):
     if event.type == "namreply":
         usernames = event.arguments[2].split()
-        logging.info(f"usernames: {usernames}")
+        logger.debug(f"usernames: {usernames}")
         for username in usernames:
             if username.lower() != nickname.lower() and username != "own3d":
                 enqueue_viewer(username, actual_token, client_id, broadcaster_id)
     elif event.type == "endofnames":
-        logging.info(f"End of NAMES list for {event.arguments[1]}.")
+        logger.debug(f"End of NAMES list for {event.arguments[1]}.")
 
 def handle_chat_message_wrapper(connection, username, message):
     future = asyncio.run_coroutine_threadsafe(
         handle_chat_message(connection, username, message), _loop
     )
     future.add_done_callback(
-        lambda f: logging.error(f"Error handling message from {username}: {f.exception()}") if f.exception() else None
+        lambda f: logger.error(f"Error handling message from {username}: {f.exception()}") if f.exception() else None
     )
 
 async def handle_chat_message(connection, username, message):
-    logging.info(f"Handling message from {username}: {message}")
+    logger.debug(f"Handling message from {username}: {message}")
     send_reply = lambda msg: connection.privmsg(channel, msg)
     try:
         command_name = message.split(" ")[0].lower()
@@ -99,12 +101,12 @@ async def handle_chat_message(connection, username, message):
             await text_to_speech(tts_message, platform="Twitch")
 
     except Exception as e:
-        logging.error(f"Error handling chat message: {e}")
+        logger.error(f"Error handling chat message: {e}")
 
 def on_pubmsg(connection, event):
     username = event.source.nick
     if (username == "soundalerts"):
-        logging.info("Skipping SoundAlerts bot")
+        logger.debug("Skipping SoundAlerts bot")
         return
 
     message = event.arguments[0]
@@ -116,18 +118,18 @@ def on_pubmsg(connection, event):
 
 def on_privnotice(connection, event):
     message = event.arguments[0] if event.arguments else ""
-    logging.warning(f"Privnotice received: {message}")
+    logger.warning(f"Privnotice received: {message}")
     if any(err in message.lower() for err in ["login unsuccessful", "authentication failed", "improperly formatted", "invalid nick"]):
-        logging.warning("Invalid token or login issue detected. Attempting reauthorization...")
+        logger.warning("Invalid token or login issue detected. Attempting reauthorization...")
         global token
         token = autherise(client_id, client_secret)
         if token:
-            logging.info("Reauthorization successful. Reconnecting...")
+            logger.info("Reauthorization successful. Reconnecting...")
             save_token_to_settings(token)
             connection.close()
             reconnect_bot()
         else:
-            logging.error("Reauthorization failed. Exiting.")
+            logger.error("Reauthorization failed. Exiting.")
             shutdown_event.set()
 
 
@@ -148,13 +150,13 @@ def reconnect_bot():
     if bot and bot.connection:
         try:
             bot.connection.close()
-            logging.info("Previous connection closed.")
+            logger.info("Previous connection closed.")
         except Exception as e:
-            logging.warning(f"Error closing previous connection: {e}")
+            logger.warning(f"Error closing previous connection: {e}")
     bot = IRCBot(server, port, nickname, token, client_id, client_secret)
     irc_thread = threading.Thread(target=bot.run, daemon=True)
     irc_thread.start()
-    logging.info("Reconnection thread started.")
+    logger.info("Reconnection thread started.")
 
 class IRCBot:
     def __init__(self, server, port, nickname, token, client_id, client_secret):
@@ -173,7 +175,7 @@ class IRCBot:
             wrapper=lambda sock: ssl_context.wrap_socket(sock, server_hostname=self.server)
         )
         try:
-            logging.info("Connecting to chat...")
+            logger.info("Connecting to chat...")
             token = self.token
             if not token.startswith("oauth:"):
                 token = f"oauth:{token}"
@@ -184,9 +186,8 @@ class IRCBot:
                 token,
                 connect_factory=factory
             )
-            logging.info(f"Connected to {self.server} as {self.nickname}")
         except irc.client.ServerConnectionError as e:
-            logging.error(f"Could not connect to server: {e}")
+            logger.error(f"Could not connect to server: {e}")
 
     def setup_handlers(self):
         if self.connection:
@@ -206,11 +207,11 @@ class IRCBot:
         try:
             self.reactor.process_forever()
         except KeyboardInterrupt:
-            logging.info("Shutting down...")
+            logger.info("Shutting down...")
         finally:
             if self.connection:
                 self.connection.close()
-            logging.info("Bot disconnected.")
+            logger.info("Bot disconnected.")
 
 async def _subscribe_to_eventsub(session_id: str):
     headers = {
@@ -260,12 +261,12 @@ async def _subscribe_to_eventsub(session_id: str):
                     json=body
                 ) as resp:
                     if resp.status == 202:
-                        logging.info(f"EventSub: subscribed to {sub['type']}")
+                        logger.info(f"EventSub: subscribed to {sub['type']}")
                     else:
                         text = await resp.text()
-                        logging.error(f"EventSub subscription failed for {sub['type']}: {resp.status} - {text}")
+                        logger.error(f"EventSub subscription failed for {sub['type']}: {resp.status} - {text}")
             except Exception as e:
-                logging.error(f"EventSub subscription error for {sub['type']}: {e}")
+                logger.error(f"EventSub subscription error for {sub['type']}: {e}")
 
 
 async def _eventsub_loop():
@@ -288,23 +289,23 @@ async def _eventsub_loop():
 
                     elif msg_type == "session_reconnect":
                         connect_url = msg["payload"]["session"]["reconnect_url"]
-                        logging.info("EventSub: reconnecting to new URL")
+                        logger.info("EventSub: reconnecting to new URL")
                         break
 
                     elif msg_type == "revocation":
-                        logging.warning("EventSub: subscription revoked, reconnecting")
+                        logger.warning("EventSub: subscription revoked, reconnecting")
                         break
 
         except Exception as e:
             if not shutdown_event.is_set():
-                logging.error(f"EventSub error: {e}")
+                logger.error(f"EventSub error: {e}")
                 await asyncio.sleep(10)
 
 
 async def _handle_eventsub_notification(msg: dict):
     sub_type = msg["metadata"]["subscription_type"]
     event = msg["payload"]["event"]
-    logging.info(f"EventSub notification: {sub_type}")
+    logger.info(f"EventSub notification: {sub_type}")
 
     if sub_type == "channel.follow":
         username = event.get("user_name", "Someone")
@@ -376,7 +377,7 @@ async def _handle_eventsub_notification(msg: dict):
 def _token_refresh_loop():
     # Refresh every 3 hours — Twitch tokens expire in ~4 hours
     while not shutdown_event.wait(timeout=3 * 60 * 60):
-        logging.info("Proactively refreshing Twitch token...")
+        logger.info("Proactively refreshing Twitch token...")
         new_token = refresh_token_if_available(client_id, client_secret)
         if new_token:
             global token, actual_token
@@ -384,9 +385,9 @@ def _token_refresh_loop():
             actual_token = new_token.split("oauth:")[-1]
             for v in list(viewers):
                 v.token = actual_token
-            logging.info("Token refreshed and propagated to all viewers.")
+            logger.info("Token refreshed and propagated to all viewers.")
         else:
-            logging.warning("Proactive token refresh failed — will retry next cycle.")
+            logger.warning("Proactive token refresh failed — will retry next cycle.")
 
 
 def run_Twitch_Bot(loop):
@@ -405,19 +406,19 @@ def run_Twitch_Bot(loop):
     channel = f"#{nickname.lower()}" if nickname else ""
 
     if not token or not client_id or not client_secret or not nickname:
-        logging.warning("Missing Twitch credentials. Attempting to authorize...")
+        logger.warning("Missing Twitch credentials. Attempting to authorize...")
         token = autherise(client_id, client_secret)
         if not token:
-            logging.error("Could not retrieve Twitch token.")
+            logger.error("Could not retrieve Twitch token.")
             return
         save_token_to_settings(token)
         actual_token = token.split("oauth:")[-1]
 
-    logging.info(f"Bot will join channel: {channel}")
+    logger.info(f"Bot will join channel: {channel}")
 
     broadcaster_id = get_broadcaster_id(actual_token, client_id, nickname)
     if broadcaster_id is None:
-        logging.warning("Failed to retrieve broadcaster ID. Reauthorizing...")
+        logger.warning("Failed to retrieve broadcaster ID. Reauthorizing...")
         token = autherise(client_id, client_secret)
         if token:
             save_token_to_settings(token)
@@ -425,7 +426,7 @@ def run_Twitch_Bot(loop):
             broadcaster_id = get_broadcaster_id(actual_token, client_id, nickname)
 
     if broadcaster_id is None:
-        logging.error("Could not find broadcaster ID after reauthorization.")
+        logger.error("Could not find broadcaster ID after reauthorization.")
         return
 
     reconnect_bot()
@@ -437,7 +438,7 @@ def run_Twitch_Bot(loop):
     while not shutdown_event.is_set():
         time.sleep(1)
 
-    logging.info("Twitch bot shutting down...")
+    logger.info("Twitch bot shutting down...")
     if bot and bot.connection:
         try:
             bot.connection.close()

@@ -1,4 +1,5 @@
 import logging
+logger = logging.getLogger(__name__)
 import threading
 import time
 
@@ -41,30 +42,30 @@ async def handle_chat_message(username, message, send_reply):
         await text_to_speech(tts_message, platform="TikTok")
 
     except Exception as e:
-        logging.error(f"Error processing TikTok message: {e}")
+        logger.error(f"Error processing TikTok message: {e}")
 
 
 def run_TikTok_Bot():
     username = settings_data.get("TikTok_Username", "").strip().lstrip("@")
     if not username:
-        logging.error("Missing TikTok_Username in settings.json.")
+        logger.error("Missing TikTok_Username in settings.json.")
         return
 
     client = TikTokLiveClient(unique_id=f"@{username}")
 
     @client.on(ConnectEvent)
     async def on_connect(event: ConnectEvent):
-        logging.info(f"Connected to TikTok LIVE: @{username}")
+        logger.info(f"Connected to TikTok LIVE: @{username}")
 
     @client.on(DisconnectEvent)
     async def on_disconnect(event: DisconnectEvent):
-        logging.info("Disconnected from TikTok LIVE.")
+        logger.info("Disconnected from TikTok LIVE.")
 
     @client.on(CommentEvent)
     async def on_comment(event: CommentEvent):
         author = event.user.nick_name
         text = event.comment
-        logging.info(f"[TikTok] {author}: {text}")
+        logger.debug(f"[TikTok] {author}: {text}")
         add_tiktok_viewer(author)
 
         # TikTok has no unauthenticated send-message API, so replies go out as TTS
@@ -91,13 +92,13 @@ def run_TikTok_Bot():
         await text_to_speech(tts_msg)
 
     try:
-        logging.info(f"Connecting to TikTok LIVE for @{username}...")
+        logger.info(f"Connecting to TikTok LIVE for @{username}...")
         client.run()
     except UserOfflineError:
-        logging.error(f"@{username} is not currently live. Start your TikTok LIVE first.")
+        logger.error(f"@{username} is not currently live. Start your TikTok LIVE first.")
     except UserNotFoundError:
-        logging.error(f"TikTok user @{username} was not found. Check TikTok_Username in settings.json.")
+        logger.error(f"TikTok user @{username} was not found. Check TikTok_Username in settings.json.")
     except Exception as e:
-        logging.error(f"TikTok bot error: {e}")
+        logger.error(f"TikTok bot error: {e}")
     finally:
-        logging.info("TikTok bot shutting down.")
+        logger.info("TikTok bot shutting down.")

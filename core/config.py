@@ -1,7 +1,6 @@
 import json
 import logging
-
-logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Global variables
 _settings_loaded = False
@@ -77,7 +76,7 @@ def load_settings(settings_path):
 
 
 def process_settings(settings_path):
-    logging.info(f"Processing settings from {settings_path}")
+    logger.info(f"Processing settings from {settings_path}")
     global sound_effects
 
     settings = load_settings(settings_path)

@@ -1,6 +1,7 @@
 import os
 import time
 import logging
+logger = logging.getLogger(__name__)
 import random
 import requests
 from datetime import datetime, timedelta, timezone
@@ -52,7 +53,7 @@ class BaseCommand:
         last_used = BaseCommand.user_cooldowns.get(username, {}).get(self.name, 0)
         time_left = max(self.cooldown - (current_time - last_used), 0)
         send_reply(f"@{username}, {self.name} command is on cooldown. Please wait {time_left:.1f} seconds.")
-        logging.info(f"{self.name} command is on cooldown for user {username}.")
+        logger.info(f"{self.name} command is on cooldown for user {username}.")
 
 
 class HelpCommand(BaseCommand):
@@ -81,7 +82,7 @@ class HelpCommand(BaseCommand):
                 response = f"Hello @{username}, here are the available commands: {cmd_list}"
 
             send_reply(response)
-            logging.info(f"Executed {self.name} command for {username}")
+            logger.info(f"Executed {self.name} command for {username}")
         else:
             self.on_cooldown(send_reply, username)
 
@@ -96,7 +97,7 @@ class ShoutCommand(BaseCommand):
             message = message.split("!shout", 1)[1].strip()
             tts_message = f"{username} shouts {message}"
             await text_to_shout(tts_message, platform=platform)
-            logging.info(f"Executed {self.name} command for {username}")
+            logger.info(f"Executed {self.name} command for {username}")
         else:
             self.on_cooldown(send_reply, username)
 
@@ -125,7 +126,7 @@ class RaffleCommand(BaseCommand):
 
             chosen_viewer = random.choice(eligible_viewers) if eligible_viewers else "no eligible viewers"
             send_reply(f"Hello @{username}, the winner of your raffle is: @{chosen_viewer}")
-            logging.info(f"Executed {self.name} command for {username}")
+            logger.info(f"Executed {self.name} command for {username}")
         else:
             self.on_cooldown(send_reply, username)
 
@@ -139,7 +140,7 @@ class LurkCommand(BaseCommand):
             tts_message = f"{username} is watching you!"
             await text_to_speech(tts_message)
             send_reply(f"Enjoy lurking @{username}")
-            logging.info(f"Executed {self.name} command for {username}")
+            logger.info(f"Executed {self.name} command for {username}")
         else:
             self.on_cooldown(send_reply, username)
 
@@ -178,11 +179,11 @@ class SubsCommand(BaseCommand):
                         sub_list = sub_list[:490 - len(prefix) - 3] + "..."
                     response_msg = prefix + sub_list
             except Exception as e:
-                logging.error(f"Error fetching subscribers: {e}")
+                logger.error(f"Error fetching subscribers: {e}")
                 response_msg = "Failed to retrieve subscribers. Please try again later."
 
             send_reply(response_msg)
-            logging.info(f"Executed {self.name} command for {username}")
+            logger.info(f"Executed {self.name} command for {username}")
         else:
             self.on_cooldown(send_reply, username)
 
@@ -202,7 +203,7 @@ class DiscordCommand(BaseCommand):
                 response = f"@{username}, join the Discord here: {discord_link}"
 
             send_reply(response)
-            logging.info(f"Executed {self.name} command for {username}")
+            logger.info(f"Executed {self.name} command for {username}")
         else:
             self.on_cooldown(send_reply, username)
 
@@ -222,7 +223,7 @@ class HugCommand(BaseCommand):
             else:
                 response = f"@{username} hugs everyone in the chat!"
             send_reply(response)
-            logging.info(f"Executed {self.name} command for {username}")
+            logger.info(f"Executed {self.name} command for {username}")
         else:
             self.on_cooldown(send_reply, username)
 
@@ -235,7 +236,7 @@ class BrainCellsCommand(BaseCommand):
         if self.can_execute(username):
             braincells = random.randint(0, 100)
             send_reply(f"@{username} has {braincells} braincells")
-            logging.info(f"Executed {self.name} command for {username}")
+            logger.info(f"Executed {self.name} command for {username}")
         else:
             self.on_cooldown(send_reply, username)
 
@@ -273,11 +274,11 @@ class UptimeCommand(BaseCommand):
                     response_msg = f"@{username}, the stream is currently offline."
 
             except Exception as e:
-                logging.error(f"Error fetching uptime: {e}")
+                logger.error(f"Error fetching uptime: {e}")
                 response_msg = "Failed to retrieve uptime. Please try again later."
 
             send_reply(response_msg)
-            logging.info(f"Executed {self.name} command for {username}")
+            logger.info(f"Executed {self.name} command for {username}")
         else:
             self.on_cooldown(send_reply, username)
 
@@ -328,10 +329,10 @@ class DadJokeCommand(BaseCommand):
                     joke = joke[:490 - len(prefix) - 3] + "..."
 
                 send_reply(prefix + joke)
-                logging.info(f"Executed {self.name} command for {username}")
+                logger.info(f"Executed {self.name} command for {username}")
 
             except Exception as e:
-                logging.error(f"Error fetching dad joke: {e}")
+                logger.error(f"Error fetching dad joke: {e}")
                 send_reply("Sorry, I couldn't fetch a dad joke right now. Please try again later.")
         else:
             self.on_cooldown(send_reply, username)
@@ -354,7 +355,7 @@ class SocialsCommand(BaseCommand):
                 response = f"@{username}, here are all my socials: {link_display}"
 
             send_reply(response)
-            logging.info(f"Executed {self.name} command for {username}")
+            logger.info(f"Executed {self.name} command for {username}")
         else:
             self.on_cooldown(send_reply, username)
 
@@ -392,7 +393,7 @@ class VoteCommand(BaseCommand):
             send_reply("⚠️ A vote is already active!")
             return
 
-        logging.info(f"Executing {self.name} command for {username}")
+        logger.info(f"Executing {self.name} command for {username}")
         parts = message.split(" ", 1)
 
         # Mod check on all platforms.
@@ -413,13 +414,13 @@ class VoteCommand(BaseCommand):
                     send_reply("You must provide at least 2 options.")
                     return
 
-                logging.info(
+                logger.info(
                     f"Starting vote initiated by {username}: '{question.strip()}?' "
                     f"with options: {', '.join(f'{i + 1}. {opt}' for i, opt in enumerate(options))}"
                 )
 
                 if OBS_Browser_Source:
-                    logging.info("Sending vote to browser source")
+                    logger.info("Sending vote to browser source")
                     self.__class__.active_vote = {
                         "question": question.strip() + "?",
                         "options": options,
@@ -441,12 +442,12 @@ class VoteCommand(BaseCommand):
                     await asyncio.gather(*[
                         client.send(json.dumps(vote_payload)) for client in list(connected_clients)
                     ])
-                    logging.info(f"Vote sent to browser source: {vote_payload}")
+                    logger.info(f"Vote sent to browser source: {vote_payload}")
                     send_reply(f"@{username} started a vote: {question.strip()}?")
                     send_reply("Type the number of your choice to vote!")
                 elif channel not in ("YouTube", "TikTok"):
                     # Twitch native poll fallback (YouTube/TikTok don't support this)
-                    logging.info("OBS web browser source is offline, creating Twitch poll instead.")
+                    logger.info("OBS web browser source is offline, creating Twitch poll instead.")
                     success, result = await create_twitch_poll(token, client_id, broadcaster_id, question, options)
                     if success:
                         send_reply(f"📊 A Twitch poll has been started! Vote using the poll above!")
@@ -470,17 +471,17 @@ class VoteCommand(BaseCommand):
                     send_reply("Type the number of your choice to vote!")
 
             except Exception as e:
-                logging.error(f"Error while processing vote command: {e}")
+                logger.error(f"Error while processing vote command: {e}")
                 send_reply("⚠️ Error starting vote.")
         else:
             send_reply(f"@{username}, please use the correct format: !vote Question? 1.OptionOne 2.OptionTwo [3.OptionThree ...]")
 
     @classmethod
     async def handle_vote_response(cls, username, message):
-        logging.info(f"Handling vote response from {username}")
+        logger.info(f"Handling vote response from {username}")
 
         if not cls.active_vote or time.time() >= cls.vote_end_time:
-            logging.info("No active vote or vote has ended.")
+            logger.info("No active vote or vote has ended.")
             return
 
         if not message.strip().isdigit():
@@ -489,7 +490,7 @@ class VoteCommand(BaseCommand):
         choice = int(message.strip())
         if 1 <= choice <= len(cls.active_vote["options"]):
             cls.vote_responses[username] = choice
-            logging.info(f"Vote response for {username} was {choice}")
+            logger.info(f"Vote response for {username} was {choice}")
 
             results = {}
             for vote in cls.vote_responses.values():
@@ -509,12 +510,12 @@ class VoteCommand(BaseCommand):
                 await asyncio.gather(*[
                     client.send(json.dumps(vote_payload)) for client in list(connected_clients)
                 ])
-                logging.info(f"Vote response sent to browser source: {vote_payload}")
+                logger.info(f"Vote response sent to browser source: {vote_payload}")
 
     @classmethod
     async def handle_end_of_vote(cls, send_reply):
         if cls.vote_end_time and time.time() >= cls.vote_end_time:
-            logging.info("Handling end of vote.")
+            logger.info("Handling end of vote.")
             cls.vote_is_active = False
 
             if not OBS_Browser_Source:
@@ -529,7 +530,7 @@ class VoteCommand(BaseCommand):
 
                 result_message = f"🗳️ Final vote results for '{cls.active_vote['question']}': " + " | ".join(result_lines)
                 send_reply(result_message)
-                logging.info("Vote ended and results sent to chat.")
+                logger.info("Vote ended and results sent to chat.")
 
             cls.active_vote = None
             cls.vote_responses = {}
@@ -554,14 +555,14 @@ async def create_twitch_poll(token, client_id, broadcaster_id, question, options
             async with session.post("https://api.twitch.tv/helix/polls", headers=headers, json=payload) as resp:
                 if resp.status == 200:
                     result = await resp.json()
-                    logging.info(f"Twitch poll successfully created: {result}")
+                    logger.info(f"Twitch poll successfully created: {result}")
                     return True, result
                 else:
                     error_text = await resp.text()
-                    logging.warning(f"Failed to create Twitch poll: {resp.status} - {error_text}")
+                    logger.warning(f"Failed to create Twitch poll: {resp.status} - {error_text}")
                     return False, error_text
     except Exception as e:
-        logging.error(f"Exception during Twitch poll creation: {e}")
+        logger.error(f"Exception during Twitch poll creation: {e}")
         return False, str(e)
 
 
@@ -585,7 +586,7 @@ class SanityCommand(BaseCommand):
                     return
 
                 self.__class__.sanity_responses[username] = value
-                logging.info(f"Sanity vote by {username}: {value}")
+                logger.info(f"Sanity vote by {username}: {value}")
 
                 total = sum(self.sanity_responses.values())
                 count = len(self.sanity_responses)
@@ -603,7 +604,7 @@ class SanityCommand(BaseCommand):
                     await asyncio.gather(*[
                         client.send(json.dumps(sanity_payload)) for client in list(connected_clients)
                     ])
-                    logging.info(f"Updated sanity sent to OBS: {sanity_payload}")
+                    logger.info(f"Updated sanity sent to OBS: {sanity_payload}")
 
                 send_reply(f"@{username} Your vote has been recorded. Current sanity: {avg_sanity}/100")
 
@@ -644,14 +645,14 @@ class ClipCommand(BaseCommand):
                 clip_id = data["data"][0]["id"]
                 send_reply(f"@{username} Clip created! https://clips.twitch.tv/{clip_id}")
             else:
-                logging.warning(f"Clip creation failed: {status} - {data}")
+                logger.warning(f"Clip creation failed: {status} - {data}")
                 send_reply(f"@{username}, couldn't create a clip right now. Is the stream live?")
 
         except Exception as e:
-            logging.error(f"Error creating clip: {e}")
+            logger.error(f"Error creating clip: {e}")
             send_reply(f"@{username}, something went wrong creating the clip.")
 
-        logging.info(f"Executed {self.name} command for {username}")
+        logger.info(f"Executed {self.name} command for {username}")
 
 
 class FollowageCommand(BaseCommand):
@@ -720,10 +721,10 @@ class FollowageCommand(BaseCommand):
                 send_reply(f"@{username}, {target} has been following for {duration}!")
 
         except Exception as e:
-            logging.error(f"Error fetching followage: {e}")
+            logger.error(f"Error fetching followage: {e}")
             send_reply(f"@{username}, couldn't retrieve follow data. Please try again later.")
 
-        logging.info(f"Executed {self.name} command for {username}")
+        logger.info(f"Executed {self.name} command for {username}")
 
 
 class EightBallCommand(BaseCommand):
@@ -752,7 +753,7 @@ class EightBallCommand(BaseCommand):
 
         response = random.choice(self._responses)
         send_reply(f"@{username} {response}")
-        logging.info(f"Executed {self.name} command for {username}")
+        logger.info(f"Executed {self.name} command for {username}")
 
 
 class ShoutOutCommand(BaseCommand):
@@ -785,7 +786,7 @@ class ShoutOutCommand(BaseCommand):
             f"Go check them out at https://twitch.tv/{shoutout_user} 🔥"
         )
 
-        logging.info(f"{username} is attempting to shoutout: {shoutout_user}")
+        logger.info(f"{username} is attempting to shoutout: {shoutout_user}")
         send_reply(response)
 
 

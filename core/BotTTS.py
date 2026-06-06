@@ -1,4 +1,5 @@
 import logging
+logger = logging.getLogger(__name__)
 import random
 import re
 import base64
@@ -136,7 +137,7 @@ def _get_voice_for_user(username: str) -> str:
     pool = available if available else candidate_voices
 
     _user_voices[key] = random.choice(pool)
-    logging.info(f"Assigned voice {_user_voices[key]} to {username}")
+    logger.info(f"Assigned voice {_user_voices[key]} to {username}")
     return _user_voices[key]
 
 
@@ -150,7 +151,7 @@ async def _generate_audio(text, username: str = "TTSystem"):
     last_error = None
     for voice in voices_to_try:
         try:
-            logging.info(f"Attempting TTS with voice: {voice}")
+            logger.info(f"Attempting TTS with voice: {voice}")
             communicate = edge_tts.Communicate(text, voice)
             buf = io.BytesIO()
             async for chunk in communicate.stream():
@@ -159,13 +160,13 @@ async def _generate_audio(text, username: str = "TTSystem"):
             audio = buf.getvalue()
             if not audio:
                 raise RuntimeError("Empty audio response")
-            logging.info(f"TTS audio generated with voice: {voice} ({len(audio)} bytes)")
+            logger.debug(f"TTS audio generated with voice: {voice} ({len(audio)} bytes)")
             if TTS_Random_Voice and voice != voices_to_try[0]:
                 _user_voices[username.lower()] = voice
-                logging.info(f"Updated voice for {username} to {voice} (original voice failed)")
+                logger.info(f"Updated voice for {username} to {voice} (original voice failed)")
             return audio
         except Exception as e:
-            logging.warning(f"Voice {voice} failed: {e}. Trying next voice...")
+            logger.warning(f"Voice {voice} failed: {e}. Trying next voice...")
             last_error = e
 
     raise RuntimeError(f"All voices failed. Last error: {last_error}")
@@ -173,7 +174,7 @@ async def _generate_audio(text, username: str = "TTSystem"):
 
 async def text_to_speech(message, platform="Twitch"):
     try:
-        logging.info("TTS activated for message")
+        logger.debug("TTS activated for message")
 
         username = "TTSystem"
         apply_spam_filter = True
@@ -183,7 +184,7 @@ async def text_to_speech(message, platform="Twitch"):
             username = username_message[0].strip()
 
             if not user_allowed_tts(username, platform):
-                logging.info(f"TTS skipped for {username}: Not allowed by TTS_Access_{platform} setting.")
+                logger.info(f"TTS skipped for {username}: Not allowed by TTS_Access_{platform} setting.")
                 return 0
         else:
             apply_spam_filter = False
@@ -191,20 +192,20 @@ async def text_to_speech(message, platform="Twitch"):
 
         if apply_spam_filter:
             if any(keyword in message.lower() for keyword in SPAM_LINK_KEYWORDS):
-                logging.info(f"TTS skipped for {username}: potential spam or link")
+                logger.info(f"TTS skipped for {username}: potential spam or link")
                 return 0
             if re.search(r"(.)\1{4,}", message.lower()):
-                logging.info(f"TTS skipped for {username}: repeated character spam")
+                logger.info(f"TTS skipped for {username}: repeated character spam")
                 return 0
             if re.search(r"(\b\w+\b(?:\s+\b\w+\b){0,4})\s+\1\s+\1", message.lower()):
-                logging.info(f"TTS skipped for {username}: repeated phrase spam")
+                logger.info(f"TTS skipped for {username}: repeated phrase spam")
                 return 0
             if any(p.search(message) for p in _TTS_SLUR_PATTERNS):
-                logging.info(f"TTS skipped for {username}: matched slur/phonetic filter")
+                logger.info(f"TTS skipped for {username}: matched slur/phonetic filter")
                 return 0
 
         if not OBS_Browser_Source:
-            logging.warning("OBS_Browser_Source is disabled — TTS audio will not play.")
+            logger.warning("OBS_Browser_Source is disabled — TTS audio will not play.")
             return 0
 
         audio_bytes = await _generate_audio(message, username)
@@ -213,11 +214,11 @@ async def text_to_speech(message, platform="Twitch"):
 
         await update_latest_message(username_message[0], username_message[1], estimated_duration, audio_b64)
 
-        logging.info("TTS done")
+        logger.debug("TTS done")
         return estimated_duration
 
     except Exception as e:
-        logging.error(f"Error in TTS: {e}")
+        logger.error(f"Error in TTS: {e}")
         return 0
 
 
@@ -230,23 +231,23 @@ async def notification_tts(message, notification_type, username):
         audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
         from core.TTSObsWebsocket import broadcast_notification
         await broadcast_notification(notification_type, username, audio_b64)
-        logging.info(f"Notification TTS sent: type={notification_type}, user={username}")
+        logger.info(f"Notification TTS sent: type={notification_type}, user={username}")
     except Exception as e:
-        logging.error(f"Error in notification TTS: {e}")
+        logger.error(f"Error in notification TTS: {e}")
 
 
 async def text_to_shout(message, platform="Twitch"):
     try:
-        logging.info("TTS shout activated for message")
+        logger.debug("TTS shout activated for message")
         username_message = message.split(" shouts ", 1)
         username = username_message[0].strip()
 
         if not user_allowed_tts(username, platform):
-            logging.info(f"TTS shout skipped for {username}: Not allowed by TTS_Access_{platform} setting.")
+            logger.info(f"TTS shout skipped for {username}: Not allowed by TTS_Access_{platform} setting.")
             return 0
 
         if not OBS_Browser_Source:
-            logging.warning("OBS_Browser_Source is disabled — TTS shout will not play.")
+            logger.warning("OBS_Browser_Source is disabled — TTS shout will not play.")
             return 0
 
         audio_bytes = await _generate_audio(message, username)
@@ -262,5 +263,5 @@ async def text_to_shout(message, platform="Twitch"):
         return estimated_duration
 
     except Exception as e:
-        logging.error(f"Error in TTS shout: {e}")
+        logger.error(f"Error in TTS shout: {e}")
         return 0

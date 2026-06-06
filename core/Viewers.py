@@ -1,4 +1,5 @@
 import logging
+logger = logging.getLogger(__name__)
 import threading
 import requests
 from concurrent.futures import ThreadPoolExecutor
@@ -17,7 +18,7 @@ def add_youtube_viewer(username, is_member=False, is_moderator=False):
     with _youtube_viewers_lock:
         if username_lower not in youtube_viewers:
             youtube_viewers.append(username_lower)
-            logging.info(f"Added YouTube viewer: {username_lower}")
+            logger.debug(f"Added YouTube viewer: {username_lower}")
         youtube_viewer_status[username_lower] = {
             "member": is_member,
             "moderator": is_moderator,
@@ -29,7 +30,7 @@ def remove_youtube_viewer(username):
     with _youtube_viewers_lock:
         if username_lower in youtube_viewers:
             youtube_viewers.remove(username_lower)
-            logging.info(f"Removed YouTube viewer: {username_lower}")
+            logger.debug(f"Removed YouTube viewer: {username_lower}")
 
 
 tiktok_viewers = []
@@ -41,7 +42,7 @@ def add_tiktok_viewer(username):
     with _tiktok_viewers_lock:
         if username_lower not in tiktok_viewers:
             tiktok_viewers.append(username_lower)
-            logging.info(f"Added TikTok viewer: {username_lower}")
+            logger.debug(f"Added TikTok viewer: {username_lower}")
 
 
 def remove_tiktok_viewer(username):
@@ -49,7 +50,7 @@ def remove_tiktok_viewer(username):
     with _tiktok_viewers_lock:
         if username_lower in tiktok_viewers:
             tiktok_viewers.remove(username_lower)
-            logging.info(f"Removed TikTok viewer: {username_lower}")
+            logger.debug(f"Removed TikTok viewer: {username_lower}")
 
 class Viewer:
     def __init__(self, username, token, client_id, broadcaster_id):
@@ -63,7 +64,7 @@ class Viewer:
         self.mod = self.check_if_mod()
 
 
-        logging.info(f"Initialized viewer: {self.username}")
+        logger.debug(f"Initialized viewer: {self.username}")
 
     def get_headers(self):
         return {
@@ -81,90 +82,90 @@ class Viewer:
         try:
             user_data = response.json()
         except Exception as e:
-            logging.error(f"Error decoding Twitch response: {e}")
+            logger.error(f"Error decoding Twitch response: {e}")
             return None
 
-        logging.debug(f"User data response for {self.username}: {user_data}")
+        logger.debug(f"User data response for {self.username}: {user_data}")
 
         if response.status_code == 200 and 'data' in user_data and user_data['data']:
             user_id = user_data['data'][0]['id']
-            logging.info(f"User ID for {self.username} is {user_id}")
+            logger.debug(f"User ID for {self.username} is {user_id}")
             return user_id
         else:
             message = user_data.get('message', 'No message')
-            logging.warning(f"Could not find user {self.username}. Status: {response.status_code}, Message: {message}")
+            logger.warning(f"Could not find user {self.username}. Status: {response.status_code}, Message: {message}")
             return None
 
     def check_if_follower(self):
-        logging.info(f"Checking if {self.username} is following {self.broadcaster_id}")
+        logger.debug(f"Checking if {self.username} is following {self.broadcaster_id}")
 
         if not self.user_id:
-            logging.error(f"User {self.username} has no ID")
+            logger.error(f"User {self.username} has no ID")
             return False
 
         headers = self.get_headers()
         follows_url = f'https://api.twitch.tv/helix/channels/followers?broadcaster_id={self.broadcaster_id}&user_id={self.user_id}'
         response = requests.get(follows_url, headers=headers, timeout=10)
 
-        logging.info(f"Follower API response: {response.status_code}")
+        logger.debug(f"Follower API response: {response.status_code}")
 
         if response.status_code == 400:
-            logging.error("Bad Request: check broadcaster_id and user_id params")
+            logger.error("Bad Request: check broadcaster_id and user_id params")
             return False
 
         elif response.status_code == 401:
-            logging.error("Unauthorized access. Missing scope: user:read:follows")
+            logger.error("Unauthorized access. Missing scope: user:read:follows")
             return False
 
         elif response.status_code == 200:
             data = response.json().get("data", [])
             if data:
-                logging.info(f"{self.username} **is** following {self.broadcaster_id}")
+                logger.debug(f"{self.username} **is** following {self.broadcaster_id}")
                 return True
             else:
-                logging.info(f"{self.username} **is NOT** following {self.broadcaster_id}")
+                logger.debug(f"{self.username} **is NOT** following {self.broadcaster_id}")
                 return False
 
     def check_if_subbed(self):
-        logging.info(f"Checking if {self.username} is subbed")
+        logger.debug(f"Checking if {self.username} is subbed")
 
         if not self.user_id:
-            logging.error(f"User {self.username} has no ID")
+            logger.error(f"User {self.username} has no ID")
             return False
 
         headers = self.get_headers()
         subs_url = f"https://api.twitch.tv/helix/subscriptions?broadcaster_id={self.broadcaster_id}&user_id={self.user_id}"
         response = requests.get(subs_url, headers=headers, timeout=10)
 
-        logging.info(f"Subscription API response: {response.status_code}")
+        logger.debug(f"Subscription API response: {response.status_code}")
 
         if response.status_code == 200:
             data = response.json().get("data", [])
             if data:
-                logging.info(f"User {self.username} **is** subscribed to {self.broadcaster_id}")
+                logger.debug(f"User {self.username} **is** subscribed to {self.broadcaster_id}")
                 return True
             else:
-                logging.info(f"User {self.username} **is NOT** subscribed to {self.broadcaster_id}")
+                logger.debug(f"User {self.username} **is NOT** subscribed to {self.broadcaster_id}")
                 return False
 
         elif response.status_code == 401:
-            logging.error("Unauthorized access. Missing scope: channel:read:subscriptions")
+            logger.error("Unauthorized access. Missing scope: channel:read:subscriptions")
             return False
 
         else:
-            logging.warning(f"Unexpected subscription response: {response.status_code}")
+            logger.warning(f"Unexpected subscription response: {response.status_code}")
             return False
 
     def check_if_mod(self):
-        logging.info(f"Checking if {self.username} is a mod")
+        logger.debug(f"Checking if {self.username} is a mod")
 
         if not self.user_id:
-            logging.error(f"User {self.username} has no ID")
+            logger.error(f"User {self.username} has no ID")
             return False
 
         # Viewer is the broadcaster — always has mod-level access
         if self.user_id == self.broadcaster_id:
-            logging.info(f"{self.username} **is** the broadcaster — treated as mod")
+            logger.debug(f"{self.username} **is** the broadcaster — treated as mod")
             return True
 
         headers = self.get_headers()
@@ -174,30 +175,30 @@ class Viewer:
         )
         response = requests.get(url, headers=headers, timeout=10)
 
-        logging.info(f"Moderator API response: {response.status_code}")
+        logger.debug(f"Moderator API response: {response.status_code}")
 
         if response.status_code == 401:
-            logging.error("Unauthorized access. Missing scope: moderation:read")
+            logger.error("Unauthorized access. Missing scope: moderation:read")
             return False
 
         elif response.status_code == 200:
             data = response.json().get("data", [])
             if any(entry["user_id"] == self.user_id for entry in data):
-                logging.info(f"{self.username} **is** a moderator")
+                logger.debug(f"{self.username} **is** a moderator")
                 return True
             else:
-                logging.info(f"{self.username} **is NOT** a moderator")
+                logger.debug(f"{self.username} **is NOT** a moderator")
                 return False
 
         else:
-            logging.warning(f"Unexpected response when checking mod status: {response.status_code}")
+            logger.warning(f"Unexpected response when checking mod status: {response.status_code}")
             return False
 
     def update_status(self):
         self.following = self.check_if_follower()
         self.subscribed = self.check_if_subbed()
         self.mod = self.check_if_mod()
-        logging.info(f"Updated status for {self.username} — Follower: {self.following}, Sub: {self.subscribed}, Mod: {self.mod}")
+        logger.info(f"Updated status for {self.username} — Follower: {self.following}, Sub: {self.subscribed}, Mod: {self.mod}")
 
 
 def new_viewer(username, token, client_id, broadcaster_id):
@@ -205,7 +206,7 @@ def new_viewer(username, token, client_id, broadcaster_id):
 
     with _viewers_lock:
         if any(v.username == username_lower for v in viewers):
-            logging.info(f"{username} already exists in the viewer list.")
+            logger.debug(f"{username} already exists in the viewer list.")
             return
 
     viewer = Viewer(username=username, token=token, client_id=client_id, broadcaster_id=broadcaster_id)
@@ -215,15 +216,14 @@ def new_viewer(username, token, client_id, broadcaster_id):
             return
         viewers.append(viewer)
 
-    logging.info(f"Added viewer: {viewer.username}")
-    logging.info(f"Updated list of viewers: {[v.username for v in viewers]}")
+    logger.debug(f"Added viewer: {viewer.username}")
 
 
 def new_viewer_wrapper(username, token, client_id, broadcaster_id):
     try:
         new_viewer(username, token, client_id, broadcaster_id)
     except Exception as e:
-        logging.error(f"Error adding viewer {username}: {e}")
+        logger.error(f"Error adding viewer {username}: {e}")
 
 
 def enqueue_viewer(username, token, client_id, broadcaster_id):
@@ -240,13 +240,13 @@ def remove_viewer(username):
         viewer_to_remove = next((v for v in viewers if v.username == username_lower), None)
         if viewer_to_remove:
             viewers.remove(viewer_to_remove)
-            logging.info(f"Removed viewer: {username}")
+            logger.debug(f"Removed viewer: {username}")
         else:
-            logging.info(f"{username} was not found in the viewers list.")
+            logger.debug(f"{username} was not found in the viewers list.")
 
 
 def get_broadcaster_id(token, client_id, username):
-    logging.info(f"Getting broadcaster_id for {username}")
+    logger.info(f"Getting broadcaster_id for {username}")
     token = token.replace("oauth:", "").strip()
 
     headers = {
@@ -258,13 +258,13 @@ def get_broadcaster_id(token, client_id, username):
     try:
         user_data = response.json()
     except Exception as e:
-        logging.warning(f"Failed to parse Twitch user response: {e}")
+        logger.warning(f"Failed to parse Twitch user response: {e}")
         return None
 
     if response.status_code == 200 and 'data' in user_data and user_data['data']:
         broadcaster_id = user_data['data'][0]['id']
-        logging.info(f"Successfully retrieved broadcaster ID for {username}: {broadcaster_id}")
+        logger.info(f"Successfully retrieved broadcaster ID for {username}: {broadcaster_id}")
         return broadcaster_id
     else:
-        logging.warning(f"Failed to retrieve broadcaster ID. Error: {user_data.get('message', 'Unknown error')}")
+        logger.warning(f"Failed to retrieve broadcaster ID. Error: {user_data.get('message', 'Unknown error')}")
         return None
