@@ -130,91 +130,6 @@ def on_privnotice(connection, event):
             logging.error("Reauthorization failed. Exiting.")
             shutdown_event.set()
 
-def on_usernotice_wrapper(connection, event):
-    future = asyncio.run_coroutine_threadsafe(
-        on_usernotice(connection, event), _loop
-    )
-    future.add_done_callback(
-        lambda f: logging.error(f"Error handling usernotice {event}: {f.exception()}") if f.exception() else None
-    )
-
-async def on_usernotice(connection, event):
-    tags = {tag["key"]: tag["value"] for tag in event.tags}
-    username = tags.get("login")
-    msg_id = tags.get("msg-id")
-    tts_message = None
-
-    # Log all tags (optional for debugging)
-    logging.debug(f"USERNOTICE tags: {tags}")
-
-    # Handle anonymous gifts (no username/login field)
-    if not username:
-        logging.info(f"USERNOTICE received but no username found: {event}")
-
-        if msg_id == "anongiftpaidupgrade":
-            tts_message = "Anonymous gifted a sub, thank you very much for the gifted sub!"
-            await text_to_speech(tts_message)
-
-        return
-
-    username = username.lower()
-    logging.info(f"USERNOTICE from {username} (type: {msg_id})")
-
-    # Determine if we need to update the viewer (subber or gifter)
-    update_needed = msg_id in {"sub", "resub", "subgift", "giftpaidupgrade"}
-
-    # Find existing viewer
-    viewer = next((v for v in viewers if v.username == username), None)
-
-    if update_needed:
-        if not viewer:
-            enqueue_viewer(username, actual_token, client_id, broadcaster_id)
-        else:
-            enqueue_status_update(viewer)
-
-    # Handle recipient viewer if it's a subgift
-    if msg_id == "subgift":
-        recipient = tags.get("msg-param-recipient-user-name")
-        if recipient:
-            recipient = recipient.lower()
-            recipient_viewer = next((v for v in viewers if v.username == recipient), None)
-            if not recipient_viewer:
-                enqueue_viewer(recipient, actual_token, client_id, broadcaster_id)
-            else:
-                enqueue_status_update(recipient_viewer)
-            tts_message = f"{username} gifted a sub to {recipient}, thank you very much for the gifted sub!"
-        else:
-            tts_message = f"{username} gifted a sub, thank you very much for the gifted sub!"
-
-    elif msg_id == "sub":
-        tts_message = f"{username} subbed, thank you very much for the sub!"
-
-    elif msg_id == "resub":
-        months = tags.get("msg-param-cumulative-months")
-        if months and months.isdigit() and int(months) > 1:
-            months_int = int(months)
-            tts_message = f"{username} resubbed for {months_int} months, thank you very much for the sub!"
-        else:
-            tts_message = f"{username} resubbed, thank you very much for the sub!"
-
-    elif msg_id == "submysterygift":
-        gift_count = tags.get("msg-param-mass-gift-count", "some")
-        tts_message = f"{username} gifted {gift_count} subs! Thank you very much for the gifted subs!"
-
-    elif msg_id == "giftpaidupgrade":
-        tts_message = f"{username} continued their gifted sub, thank you very much!"
-
-    elif msg_id == "raid":
-        raider_count = tags.get("msg-param-viewerCount", "")
-        count_str = f" with {raider_count} viewers" if raider_count else ""
-        tts_message = f"{username} raided, thank you very much for the raid!"
-        connection.privmsg(channel, f"Thank you for the raid @{username}{count_str}! Go check them out at https://twitch.tv/{username}")
-
-    elif msg_id == "bitsbadgetier":
-        tts_message = f"{username} gave bits, thank you very much for the bits!"
-
-    if tts_message:
-        await text_to_speech(tts_message)
 
 def save_token_to_settings(new_token):
     if not new_token.startswith("oauth:"):
@@ -281,7 +196,6 @@ class IRCBot:
             self.connection.add_global_handler('endofnames', on_names)
             self.connection.add_global_handler('ping', on_ping)
             self.connection.add_global_handler('privnotice', on_privnotice)
-            self.connection.add_global_handler('usernotice', on_usernotice_wrapper)
             self.connection.add_global_handler('all_events', on_any_event)  # Debug
 
     def run(self):
@@ -302,61 +216,77 @@ async def _subscribe_to_eventsub(session_id: str):
         "Client-Id": client_id,
         "Content-Type": "application/json"
     }
-    body = {
-        "type": "channel.follow",
-        "version": "2",
-        "condition": {
-            "broadcaster_user_id": broadcaster_id,
-            "moderator_user_id": broadcaster_id
+    subscriptions = [
+        {
+            "type": "channel.follow",
+            "version": "2",
+            "condition": {"broadcaster_user_id": broadcaster_id, "moderator_user_id": broadcaster_id},
         },
-        "transport": {
-            "method": "websocket",
-            "session_id": session_id
-        }
-    }
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                "https://api.twitch.tv/helix/eventsub/subscriptions",
-                headers=headers,
-                json=body
-            ) as resp:
-                if resp.status == 202:
-                    logging.info("EventSub: subscribed to channel.follow")
-                else:
-                    text = await resp.text()
-                    logging.error(f"EventSub subscription failed: {resp.status} - {text}")
-    except Exception as e:
-        logging.error(f"EventSub subscription error: {e}")
+        {
+            "type": "channel.subscribe",
+            "version": "1",
+            "condition": {"broadcaster_user_id": broadcaster_id},
+        },
+        {
+            "type": "channel.subscription.message",
+            "version": "1",
+            "condition": {"broadcaster_user_id": broadcaster_id},
+        },
+        {
+            "type": "channel.subscription.gift",
+            "version": "1",
+            "condition": {"broadcaster_user_id": broadcaster_id},
+        },
+        {
+            "type": "channel.raid",
+            "version": "1",
+            "condition": {"to_broadcaster_user_id": broadcaster_id},
+        },
+        {
+            "type": "channel.cheer",
+            "version": "1",
+            "condition": {"broadcaster_user_id": broadcaster_id},
+        },
+    ]
+    async with aiohttp.ClientSession() as session:
+        for sub in subscriptions:
+            body = {**sub, "transport": {"method": "websocket", "session_id": session_id}}
+            try:
+                async with session.post(
+                    "https://api.twitch.tv/helix/eventsub/subscriptions",
+                    headers=headers,
+                    json=body
+                ) as resp:
+                    if resp.status == 202:
+                        logging.info(f"EventSub: subscribed to {sub['type']}")
+                    else:
+                        text = await resp.text()
+                        logging.error(f"EventSub subscription failed for {sub['type']}: {resp.status} - {text}")
+            except Exception as e:
+                logging.error(f"EventSub subscription error for {sub['type']}: {e}")
 
 
 async def _eventsub_loop():
-    """Receive follow events in real time via Twitch EventSub WebSocket.
-    Twitch removed follow events from IRC — EventSub is the only way to get them without polling."""
     EVENTSUB_URL = "wss://eventsub.wss.twitch.tv/ws"
     connect_url = EVENTSUB_URL
 
     while not shutdown_event.is_set():
         try:
             async with websockets.connect(connect_url) as ws:
-                connect_url = EVENTSUB_URL  # reset after any reconnect
+                connect_url = EVENTSUB_URL
                 async for raw in ws:
                     msg = json.loads(raw)
                     msg_type = msg.get("metadata", {}).get("message_type")
 
                     if msg_type == "session_welcome":
-                        session_id = msg["payload"]["session"]["id"]
-                        await _subscribe_to_eventsub(session_id)
+                        await _subscribe_to_eventsub(msg["payload"]["session"]["id"])
 
                     elif msg_type == "notification":
-                        event = msg["payload"]["event"]
-                        username = event.get("user_name", "Someone")
-                        logging.info(f"EventSub: new follower {username}")
-                        await notification_tts(f"{username} just followed!", "follow", username)
+                        await _handle_eventsub_notification(msg)
 
                     elif msg_type == "session_reconnect":
                         connect_url = msg["payload"]["session"]["reconnect_url"]
-                        logging.info(f"EventSub: reconnecting to new URL")
+                        logging.info("EventSub: reconnecting to new URL")
                         break
 
                     elif msg_type == "revocation":
@@ -367,6 +297,70 @@ async def _eventsub_loop():
             if not shutdown_event.is_set():
                 logging.error(f"EventSub error: {e}")
                 await asyncio.sleep(10)
+
+
+async def _handle_eventsub_notification(msg: dict):
+    sub_type = msg["metadata"]["subscription_type"]
+    event = msg["payload"]["event"]
+    logging.info(f"EventSub notification: {sub_type}")
+
+    if sub_type == "channel.follow":
+        username = event.get("user_name", "Someone")
+        await notification_tts(f"{username} just followed!", "follow", username)
+
+    elif sub_type == "channel.subscribe" and not event.get("is_gift"):
+        username = event.get("user_login", "someone")
+        viewer = next((v for v in viewers if v.username == username), None)
+        if viewer:
+            enqueue_status_update(viewer)
+        else:
+            enqueue_viewer(username, actual_token, client_id, broadcaster_id)
+        await text_to_speech(f"{username} subbed, thank you very much for the sub!")
+
+    elif sub_type == "channel.subscription.message":
+        username = event.get("user_login", "someone")
+        months = event.get("cumulative_months", 0)
+        viewer = next((v for v in viewers if v.username == username), None)
+        if viewer:
+            enqueue_status_update(viewer)
+        else:
+            enqueue_viewer(username, actual_token, client_id, broadcaster_id)
+        if months > 1:
+            tts = f"{username} resubbed for {months} months, thank you very much for the sub!"
+        else:
+            tts = f"{username} resubbed, thank you very much for the sub!"
+        await text_to_speech(tts)
+
+    elif sub_type == "channel.subscription.gift":
+        is_anon = event.get("is_anonymous", False)
+        gifter = event.get("user_login") if not is_anon else None
+        total = event.get("total", 1)
+        if gifter:
+            viewer = next((v for v in viewers if v.username == gifter), None)
+            if viewer:
+                enqueue_status_update(viewer)
+            else:
+                enqueue_viewer(gifter, actual_token, client_id, broadcaster_id)
+            name = gifter
+        else:
+            name = "Anonymous"
+        if total > 1:
+            tts = f"{name} gifted {total} subs! Thank you very much for the gifted subs!"
+        else:
+            tts = f"{name} gifted a sub, thank you very much for the gifted sub!"
+        await text_to_speech(tts)
+
+    elif sub_type == "channel.raid":
+        username = event.get("from_broadcaster_user_login", "someone")
+        viewer_count = event.get("viewers", "")
+        count_str = f" with {viewer_count} viewers" if viewer_count else ""
+        if bot and bot.connection:
+            bot.connection.privmsg(channel, f"Thank you for the raid @{username}{count_str}! Go check them out at https://twitch.tv/{username}")
+        await text_to_speech(f"{username} raided, thank you very much for the raid!")
+
+    elif sub_type == "channel.cheer":
+        username = event.get("user_login") if not event.get("is_anonymous") else "Anonymous"
+        await text_to_speech(f"{username} gave bits, thank you very much for the bits!")
 
 
 def _token_refresh_loop():

@@ -23,6 +23,41 @@ def _build_eventsub_subscription(broadcaster_id: str, session_id: str) -> dict:
     }
 
 
+# platforms/TwitchBot.py — generic per-subscription body builder (mirrors _subscribe_to_eventsub loop)
+def _build_eventsub_body(sub_type: str, version: str, condition: dict, session_id: str) -> dict:
+    return {
+        "type": sub_type,
+        "version": version,
+        "condition": condition,
+        "transport": {"method": "websocket", "session_id": session_id},
+    }
+
+
+# platforms/TwitchBot.py — TTS message construction for each EventSub sub event
+def _eventsub_sub_tts(sub_type: str, event: dict) -> str | None:
+    if sub_type == "channel.subscribe" and not event.get("is_gift"):
+        return f"{event['user_login']} subbed, thank you very much for the sub!"
+    if sub_type == "channel.subscription.message":
+        months = event.get("cumulative_months", 0)
+        name = event["user_login"]
+        if months > 1:
+            return f"{name} resubbed for {months} months, thank you very much for the sub!"
+        return f"{name} resubbed, thank you very much for the sub!"
+    if sub_type == "channel.subscription.gift":
+        name = event.get("user_login") if not event.get("is_anonymous") else "Anonymous"
+        total = event.get("total", 1)
+        if total > 1:
+            return f"{name} gifted {total} subs! Thank you very much for the gifted subs!"
+        return f"{name} gifted a sub, thank you very much for the gifted sub!"
+    if sub_type == "channel.raid":
+        name = event.get("from_broadcaster_user_login", "someone")
+        return f"{name} raided, thank you very much for the raid!"
+    if sub_type == "channel.cheer":
+        name = event.get("user_login") if not event.get("is_anonymous") else "Anonymous"
+        return f"{name} gave bits, thank you very much for the bits!"
+    return None
+
+
 # platforms/YouTubeBot.py — event type → (tts_text, notification_type)
 def _youtube_event_text(msg_type: str, author: str, snippet: dict):
     if msg_type == "newSponsorEvent":
@@ -188,6 +223,112 @@ class TestIsSubDetection(unittest.TestCase):
 
     def test_case_insensitive(self):
         self.assertTrue(_is_sub_message("Alice Subbed, THANK YOU VERY MUCH FOR THE SUB!"))
+
+
+class TestEventSubSubPayloads(unittest.TestCase):
+
+    def _body(self, sub_type, version, condition):
+        return _build_eventsub_body(sub_type, version, condition, "sess_abc")
+
+    def test_subscribe_payload(self):
+        body = self._body("channel.subscribe", "1", {"broadcaster_user_id": "123"})
+        self.assertEqual(body["type"], "channel.subscribe")
+        self.assertEqual(body["version"], "1")
+        self.assertEqual(body["condition"]["broadcaster_user_id"], "123")
+
+    def test_subscription_message_payload(self):
+        body = self._body("channel.subscription.message", "1", {"broadcaster_user_id": "123"})
+        self.assertEqual(body["type"], "channel.subscription.message")
+
+    def test_subscription_gift_payload(self):
+        body = self._body("channel.subscription.gift", "1", {"broadcaster_user_id": "123"})
+        self.assertEqual(body["type"], "channel.subscription.gift")
+
+    def test_raid_uses_to_broadcaster(self):
+        body = self._body("channel.raid", "1", {"to_broadcaster_user_id": "123"})
+        self.assertEqual(body["condition"]["to_broadcaster_user_id"], "123")
+        self.assertNotIn("broadcaster_user_id", body["condition"])
+
+    def test_cheer_payload(self):
+        body = self._body("channel.cheer", "1", {"broadcaster_user_id": "123"})
+        self.assertEqual(body["type"], "channel.cheer")
+
+    def test_all_payloads_json_serialisable(self):
+        for sub_type, version, cond in [
+            ("channel.subscribe", "1", {"broadcaster_user_id": "1"}),
+            ("channel.subscription.message", "1", {"broadcaster_user_id": "1"}),
+            ("channel.subscription.gift", "1", {"broadcaster_user_id": "1"}),
+            ("channel.raid", "1", {"to_broadcaster_user_id": "1"}),
+            ("channel.cheer", "1", {"broadcaster_user_id": "1"}),
+        ]:
+            with self.subTest(type=sub_type):
+                self.assertIsInstance(json.dumps(self._body(sub_type, version, cond)), str)
+
+
+class TestEventSubSubTTS(unittest.TestCase):
+
+    def test_new_sub(self):
+        tts = _eventsub_sub_tts("channel.subscribe", {"user_login": "alice", "is_gift": False})
+        self.assertIn("alice", tts)
+        self.assertIn("thank you very much for the sub!", tts.lower())
+
+    def test_gifted_sub_is_skipped(self):
+        tts = _eventsub_sub_tts("channel.subscribe", {"user_login": "alice", "is_gift": True})
+        self.assertIsNone(tts)
+
+    def test_resub_with_months(self):
+        tts = _eventsub_sub_tts("channel.subscription.message", {"user_login": "bob", "cumulative_months": 6})
+        self.assertIn("6 months", tts)
+        self.assertIn("thank you very much for the sub!", tts.lower())
+
+    def test_resub_one_month(self):
+        tts = _eventsub_sub_tts("channel.subscription.message", {"user_login": "bob", "cumulative_months": 1})
+        self.assertNotIn("month", tts)
+        self.assertIn("resubbed", tts)
+
+    def test_single_gift(self):
+        tts = _eventsub_sub_tts("channel.subscription.gift", {"user_login": "carol", "total": 1, "is_anonymous": False})
+        self.assertIn("carol", tts)
+        self.assertIn("thank you very much for the gifted sub", tts.lower())
+
+    def test_mystery_gift(self):
+        tts = _eventsub_sub_tts("channel.subscription.gift", {"user_login": "carol", "total": 10, "is_anonymous": False})
+        self.assertIn("10 subs", tts)
+        self.assertIn("thank you very much for the gifted subs", tts.lower())
+
+    def test_anonymous_gift(self):
+        tts = _eventsub_sub_tts("channel.subscription.gift", {"total": 1, "is_anonymous": True})
+        self.assertIn("Anonymous", tts)
+
+    def test_raid(self):
+        tts = _eventsub_sub_tts("channel.raid", {"from_broadcaster_user_login": "dave"})
+        self.assertIn("dave", tts)
+        self.assertIn("raided", tts)
+
+    def test_cheer(self):
+        tts = _eventsub_sub_tts("channel.cheer", {"user_login": "eve", "is_anonymous": False})
+        self.assertIn("eve", tts)
+        self.assertIn("bits", tts)
+
+    def test_anonymous_cheer(self):
+        tts = _eventsub_sub_tts("channel.cheer", {"is_anonymous": True})
+        self.assertIn("Anonymous", tts)
+
+    def test_tts_messages_recognised_as_sub_events(self):
+        cases = [
+            ("channel.subscribe", {"user_login": "a", "is_gift": False}),
+            ("channel.subscription.message", {"user_login": "a", "cumulative_months": 3}),
+            ("channel.subscription.gift", {"user_login": "a", "total": 1, "is_anonymous": False}),
+            ("channel.subscription.gift", {"user_login": "a", "total": 5, "is_anonymous": False}),
+        ]
+        for sub_type, event in cases:
+            with self.subTest(type=sub_type, total=event.get("total")):
+                tts = _eventsub_sub_tts(sub_type, event)
+                self.assertTrue(
+                    "thank you very much for the sub!" in tts.lower()
+                    or "thank you very much for the gifted sub" in tts.lower(),
+                    msg=f"TTS not recognised as sub event: {tts}"
+                )
 
 
 if __name__ == "__main__":
