@@ -169,7 +169,9 @@ class IRCBot:
 
     def connect(self):
         ssl_context = ssl.create_default_context()
-        factory = irc.connection.Factory(wrapper=ssl_context.wrap_socket)
+        factory = irc.connection.Factory(
+            wrapper=lambda sock: ssl_context.wrap_socket(sock, server_hostname=self.server)
+        )
         try:
             logging.info("Connecting to chat...")
             token = self.token

@@ -83,7 +83,7 @@ def process_settings(settings_path):
     settings = load_settings(settings_path)
 
     if settings.get("enable_sound_effects", False):
-        from SoundEffect import load_sound_effects
+        from core.SoundEffect import load_sound_effects
         sound_effects = load_sound_effects(settings.get("sound_effects_file_path"))
 
     return {
