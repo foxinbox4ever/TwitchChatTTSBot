@@ -6,7 +6,7 @@ import asyncio
 
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
-from core.BotTTS import text_to_speech
+from core.BotTTS import text_to_speech, notification_tts
 from core.Commands import COMMANDS, VoteCommand
 from core.SoundEffect import play_sound_from_file
 from core.config import settings_data, sound_effects
@@ -96,11 +96,52 @@ def poll_chat_messages():
                     continue
 
                 author = author_details["displayName"]
-                text = message["snippet"]["displayMessage"]
+                snippet = message["snippet"]
+                msg_type = snippet.get("type", "textMessageEvent")
                 is_member = author_details.get("isChatSponsor", False)
                 is_moderator = author_details.get("isChatModerator", False)
-                logging.info(f"[YouTube Chat] {author}: {text}")
                 add_youtube_viewer(author, is_member=is_member, is_moderator=is_moderator)
+
+                if msg_type == "newSponsorEvent":
+                    logging.info(f"[YouTube] New member: {author}")
+                    asyncio.run_coroutine_threadsafe(
+                        notification_tts(f"{author} just became a member!", "member", author), _loop
+                    )
+                    continue
+
+                elif msg_type == "memberMilestoneChatEvent":
+                    details = snippet.get("memberMilestoneChatDetails", {})
+                    months = details.get("memberMonth", "")
+                    logging.info(f"[YouTube] Member milestone: {author} ({months} months)")
+                    asyncio.run_coroutine_threadsafe(
+                        notification_tts(f"{author} has been a member for {months} months!", "member", author), _loop
+                    )
+                    continue
+
+                elif msg_type == "membershipGiftingEvent":
+                    details = snippet.get("membershipGiftingDetails", {})
+                    count = details.get("giftMembershipsCount", "some")
+                    logging.info(f"[YouTube] Membership gift: {author} gifted {count}")
+                    asyncio.run_coroutine_threadsafe(
+                        notification_tts(f"{author} gifted {count} memberships!", "member", author), _loop
+                    )
+                    continue
+
+                elif msg_type == "superChatEvent":
+                    details = snippet.get("superChatDetails", {})
+                    amount = details.get("amountDisplayString", "")
+                    comment = details.get("userComment", "")
+                    tts_text = f"{author} sent a super chat of {amount}!"
+                    if comment:
+                        tts_text += f" They said: {comment}"
+                    logging.info(f"[YouTube] Super chat: {author} {amount}")
+                    asyncio.run_coroutine_threadsafe(
+                        notification_tts(tts_text, "superchat", author), _loop
+                    )
+                    continue
+
+                text = snippet["displayMessage"]
+                logging.info(f"[YouTube Chat] {author}: {text}")
                 threading.Thread(
                     target=handle_chat_message_wrapper,
                     args=(author, text),

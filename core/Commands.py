@@ -615,6 +615,146 @@ class SanityCommand(BaseCommand):
             send_reply(f"@{username}, please provide a number like `!sanity 85`.")
 
 
+class ClipCommand(BaseCommand):
+    platforms = ("Twitch",)
+
+    def __init__(self):
+        super().__init__(name="!clip", cooldown=30, description="Creates a clip of the current stream")
+
+    async def execute(self, send_reply, username, message, channel, token, client_id, broadcaster_id):
+        if not self.can_execute(username):
+            self.on_cooldown(send_reply, username)
+            return
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Client-Id": client_id
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"https://api.twitch.tv/helix/clips?broadcaster_id={broadcaster_id}",
+                    headers=headers
+                ) as resp:
+                    status = resp.status
+                    data = await resp.json()
+
+            if status == 202 and data.get("data"):
+                clip_id = data["data"][0]["id"]
+                send_reply(f"@{username} Clip created! https://clips.twitch.tv/{clip_id}")
+            else:
+                logging.warning(f"Clip creation failed: {status} - {data}")
+                send_reply(f"@{username}, couldn't create a clip right now. Is the stream live?")
+
+        except Exception as e:
+            logging.error(f"Error creating clip: {e}")
+            send_reply(f"@{username}, something went wrong creating the clip.")
+
+        logging.info(f"Executed {self.name} command for {username}")
+
+
+class FollowageCommand(BaseCommand):
+    platforms = ("Twitch",)
+
+    def __init__(self):
+        super().__init__(name="!followage", cooldown=10, description="Shows how long you (or another user) have been following the channel. Usage: !followage or !followage @username")
+
+    async def execute(self, send_reply, username, message, channel, token, client_id, broadcaster_id):
+        if not self.can_execute(username):
+            self.on_cooldown(send_reply, username)
+            return
+
+        parts = message.split()
+        target = parts[1].lstrip("@") if len(parts) > 1 else username
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Client-Id": client_id
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"https://api.twitch.tv/helix/users?login={target}", headers=headers) as resp:
+                    user_data = await resp.json()
+
+                if not user_data.get("data"):
+                    send_reply(f"@{username}, user '{target}' not found.")
+                    return
+
+                user_id = user_data["data"][0]["id"]
+
+                async with session.get(
+                    f"https://api.twitch.tv/helix/channels/followers?broadcaster_id={broadcaster_id}&user_id={user_id}",
+                    headers=headers
+                ) as resp:
+                    follow_data = await resp.json()
+
+            if not follow_data.get("data"):
+                if target.lower() == username.lower():
+                    send_reply(f"@{username}, you are not following this channel.")
+                else:
+                    send_reply(f"@{username}, {target} is not following this channel.")
+                return
+
+            followed_at = datetime.strptime(follow_data["data"][0]["followed_at"], "%Y-%m-%dT%H:%M:%SZ")
+            followed_at = followed_at.replace(tzinfo=timezone.utc)
+            delta = datetime.now(timezone.utc) - followed_at
+
+            years, remainder = divmod(delta.days, 365)
+            months, days = divmod(remainder, 30)
+
+            duration_parts = []
+            if years:
+                duration_parts.append(f"{years} year{'s' if years != 1 else ''}")
+            if months:
+                duration_parts.append(f"{months} month{'s' if months != 1 else ''}")
+            if days or not duration_parts:
+                duration_parts.append(f"{days} day{'s' if days != 1 else ''}")
+
+            duration = ", ".join(duration_parts)
+
+            if target.lower() == username.lower():
+                send_reply(f"@{username}, you have been following for {duration}!")
+            else:
+                send_reply(f"@{username}, {target} has been following for {duration}!")
+
+        except Exception as e:
+            logging.error(f"Error fetching followage: {e}")
+            send_reply(f"@{username}, couldn't retrieve follow data. Please try again later.")
+
+        logging.info(f"Executed {self.name} command for {username}")
+
+
+class EightBallCommand(BaseCommand):
+    _responses = [
+        "It is certain.", "It is decidedly so.", "Without a doubt.",
+        "Yes, definitely.", "You may rely on it.", "As I see it, yes.",
+        "Most likely.", "Outlook good.", "Yes.", "Signs point to yes.",
+        "Reply hazy, try again.", "Ask again later.", "Better not tell you now.",
+        "Cannot predict now.", "Concentrate and ask again.",
+        "Don't count on it.", "My reply is no.", "My sources say no.",
+        "Outlook not so good.", "Very doubtful."
+    ]
+
+    def __init__(self):
+        super().__init__(name="!8ball", cooldown=5, description="Ask the magic 8-ball a question. Usage: !8ball will I win?")
+
+    async def execute(self, send_reply, username, message, channel, token, client_id, broadcaster_id):
+        if not self.can_execute(username):
+            self.on_cooldown(send_reply, username)
+            return
+
+        parts = message.split(" ", 1)
+        if len(parts) < 2 or not parts[1].strip():
+            send_reply(f"@{username}, you need to ask a question! Usage: !8ball will I win?")
+            return
+
+        response = random.choice(self._responses)
+        send_reply(f"@{username} {response}")
+        logging.info(f"Executed {self.name} command for {username}")
+
+
 class ShoutOutCommand(BaseCommand):
     def __init__(self):
         super().__init__(
@@ -663,5 +803,8 @@ COMMANDS = {
     "!socials": SocialsCommand(),
     "!vote": VoteCommand(),
     "!sanity": SanityCommand(),
-    "!so": ShoutOutCommand()
+    "!so": ShoutOutCommand(),
+    "!followage": FollowageCommand(),
+    "!8ball": EightBallCommand(),
+    "!clip": ClipCommand()
 }

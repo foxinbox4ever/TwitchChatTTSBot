@@ -6,8 +6,9 @@ import irc.client
 import json
 import time
 import asyncio
+import aiohttp
 
-from core.BotTTS import text_to_speech
+from core.BotTTS import text_to_speech, notification_tts
 from core.Commands import COMMANDS, VoteCommand
 from core.SoundEffect import play_sound_from_file
 from core.config import settings_data, sound_effects, enable_sound_effects
@@ -203,7 +204,10 @@ async def on_usernotice(connection, event):
         tts_message = f"{username} continued their gifted sub, thank you very much!"
 
     elif msg_id == "raid":
+        raider_count = tags.get("msg-param-viewerCount", "")
+        count_str = f" with {raider_count} viewers" if raider_count else ""
         tts_message = f"{username} raided, thank you very much for the raid!"
+        connection.privmsg(channel, f"Thank you for the raid @{username}{count_str}! Go check them out at https://twitch.tv/{username}")
 
     elif msg_id == "bitsbadgetier":
         tts_message = f"{username} gave bits, thank you very much for the bits!"
@@ -291,6 +295,40 @@ class IRCBot:
                 self.connection.close()
             logging.info("Bot disconnected.")
 
+async def _follow_polling_loop():
+    """Poll for new followers every 30s. Twitch removed follow events from IRC, so polling is required."""
+    seen_ids = set()
+    initialized = False
+
+    while not shutdown_event.is_set():
+        await asyncio.sleep(30)
+        try:
+            headers = {"Authorization": f"Bearer {actual_token}", "Client-Id": client_id}
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"https://api.twitch.tv/helix/channels/followers?broadcaster_id={broadcaster_id}&first=10",
+                    headers=headers
+                ) as resp:
+                    data = await resp.json()
+
+            followers = data.get("data", [])
+            current_ids = {f["user_id"] for f in followers}
+
+            if not initialized:
+                seen_ids = current_ids
+                initialized = True
+            else:
+                for f in followers:
+                    if f["user_id"] not in seen_ids:
+                        seen_ids.add(f["user_id"])
+                        name = f["user_name"]
+                        logging.info(f"New follower detected: {name}")
+                        await notification_tts(f"{name} just followed!", "follow", name)
+
+        except Exception as e:
+            logging.error(f"Follow polling error: {e}")
+
+
 def _token_refresh_loop():
     # Refresh every 3 hours — Twitch tokens expire in ~4 hours
     while not shutdown_event.wait(timeout=3 * 60 * 60):
@@ -349,6 +387,7 @@ def run_Twitch_Bot(loop):
     reconnect_bot()
 
     threading.Thread(target=_token_refresh_loop, daemon=True).start()
+    asyncio.run_coroutine_threadsafe(_follow_polling_loop(), _loop)
 
     # Run until externally shut down
     while not shutdown_event.is_set():

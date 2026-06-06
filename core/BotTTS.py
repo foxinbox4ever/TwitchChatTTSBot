@@ -221,6 +221,20 @@ async def text_to_speech(message, platform="Twitch"):
         return 0
 
 
+async def notification_tts(message, notification_type, username):
+    """Generate TTS for an alert (follow, member, etc.) and send as a notification to the browser."""
+    try:
+        if not OBS_Browser_Source:
+            return
+        audio_bytes = await _generate_audio(message, "TTSystem")
+        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+        from core.TTSObsWebsocket import broadcast_notification
+        await broadcast_notification(notification_type, username, audio_b64)
+        logging.info(f"Notification TTS sent: type={notification_type}, user={username}")
+    except Exception as e:
+        logging.error(f"Error in notification TTS: {e}")
+
+
 async def text_to_shout(message, platform="Twitch"):
     try:
         logging.info("TTS shout activated for message")

@@ -54,6 +54,16 @@ async def update_latest_message(username, message, duration, audio_b64=None, vol
         logging.error(f"Failed to send latest message: {e}")
 
 
+async def broadcast_notification(notification_type, username, audio_b64=None):
+    if not connected_clients:
+        return
+    payload = {"notification": {"type": notification_type, "username": username}}
+    if audio_b64:
+        payload["notification"]["audio"] = audio_b64
+    data = json.dumps(payload)
+    await asyncio.gather(*(client.send(data) for client in list(connected_clients)))
+
+
 async def start_websocket_server():
     port = load_settings("settings.json").get("OBS_Websocket_Port", 8080)
     async with websockets.serve(websocket_handler, "0.0.0.0", port):
