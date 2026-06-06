@@ -83,6 +83,11 @@ The TTS audio is generated on the bot's host machine and streamed to OBS via Web
 - Tick **Refresh browser when scene becomes active**
 - Run `Bot.py` to start the WebSocket server
 
+**TTS behaviour in the browser source:**
+- Regular chat messages play immediately and overlap — multiple viewers talking at once will all be heard
+- Sub, follow, and other alert events stop all currently playing TTS, show a confetti overlay, and play the alert announcement. Any messages that arrive during the alert are queued and play normally once it finishes
+- Each message stays on screen for exactly as long as its audio plays, then fades out
+
 ---
 
 ### Built-in Commands
@@ -105,8 +110,36 @@ Commands are filtered per platform — `!help` only shows commands available on 
 | `!vote` | Lets mods create a chat poll — mod only on all platforms | All |
 | `!sanity` | Viewers vote on the streamer's sanity level | All |
 | `!so` | Gives a shout out to another streamer — mod only on all platforms | All |
+| `!followage` | Shows how long you (or another user) have been following the channel | Twitch only |
+| `!8ball` | Ask the magic 8-ball a question | All |
+| `!clip` | Creates a clip of the current stream (requires `clips:edit` scope) | Twitch only |
 
 If you have new command ideas, join the Discord and message there: [Discord](https://discord.gg/UM3rmnf9zV)
+
+---
+
+### Alerts and notifications
+
+The bot fires visual alerts on the OBS browser source with confetti for the following events. Each alert plays its own TTS announcement, pauses any ongoing chat TTS until it finishes, then resumes.
+
+**Twitch**
+- New follower — polled every 30 seconds (Twitch removed follow events from IRC)
+- Sub / resub / gift sub — announced with confetti when the event fires
+- Raid — automatic shout out posted to chat with raider count
+
+**YouTube**
+- New member (`newSponsorEvent`)
+- Member milestone (`memberMilestoneChatEvent`)
+- Membership gift (`membershipGiftingEvent`)
+- Super Chat (`superChatEvent`) — amount and message included in the TTS
+
+Alert types show different styles in the browser source:
+
+| Type | Icon | Colour |
+|---|---|---|
+| New follower | ✨ | Purple |
+| New member / milestone / gift | ⭐ | Gold |
+| Super Chat | 💰 | Green |
 
 ---
 
